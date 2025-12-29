@@ -10,7 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.0.0" />
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="13.0.0" />
+    <PackageReference Include="Aspire.Hosting.Yarp" Version="13.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -18,7 +19,6 @@
     <ProjectReference Include="..\Legacy.PolicyService\Legacy.PolicyService.csproj" />
     <ProjectReference Include="..\Legacy.ClaimsService\Legacy.ClaimsService.csproj" />
     <ProjectReference Include="..\Legacy.PricingRulesService\Legacy.PricingRulesService.csproj" />
-    <ProjectReference Include="..\Legacy.Gateway\Legacy.Gateway.csproj" />
   </ItemGroup>
 
 </Project>

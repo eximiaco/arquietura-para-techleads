@@ -69,13 +69,24 @@ var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
     .WithEnvironment("FAULT_DELAY_MS", builder.Configuration["FAULT_DELAY_MS"] ?? "300");
 
-// Gateway Legacy - expõe todos os serviços Legacy através de uma única porta
-// Usa service discovery do Aspire para descobrir as URLs dos serviços dinamicamente
-var gateway = builder.AddProject<Projects.Legacy_Gateway>("gateway")
-    .WithHttpEndpoint() // Força o Aspire a gerenciar a porta dinamicamente
-    .WithReference(quoteService)
-    .WithReference(policyService)
-    .WithReference(claimsService)
-    .WithReference(pricingRulesService);
+// Gateway Legacy usando AddYarp() nativo do Aspire
+// Expõe todos os serviços Legacy através de uma única porta
+// Usa service discovery automático do Aspire - sem problemas de HttpSys!
+// Nota: AddYarp() já cria o endpoint HTTP automaticamente, não precisa chamar WithHttpEndpoint()
+var gateway = builder.AddYarp("gateway")
+    .WithConfiguration(yarp =>
+    {
+        // Rota para QuoteService
+        yarp.AddRoute("/QuoteService.svc/{**catch-all}", quoteService);
+        
+        // Rota para PolicyService
+        yarp.AddRoute("/PolicyService.svc/{**catch-all}", policyService);
+        
+        // Rota para ClaimsService
+        yarp.AddRoute("/ClaimsService.svc/{**catch-all}", claimsService);
+        
+        // Rota para PricingRulesService
+        yarp.AddRoute("/PricingRulesService.svc/{**catch-all}", pricingRulesService);
+    });
 
 builder.Build().Run();

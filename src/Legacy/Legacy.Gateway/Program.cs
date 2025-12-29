@@ -1,16 +1,6 @@
 using Microsoft.Extensions.Configuration;
-using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Garantir que estamos usando apenas Kestrel (não HttpSys)
-// HttpSys não está disponível no macOS/Linux
-builder.WebHost.UseKestrel();
-
-// Desabilitar HttpSys delegation no YARP para evitar TypeLoadException no macOS
-// O YARP tentará usar HttpSys delegation automaticamente se detectar HttpSys,
-// mas como estamos usando Kestrel, precisamos evitar essa tentativa
-Environment.SetEnvironmentVariable("ASPNETCORE_SERVER_URLS", "");
 
 // Configurar YARP dinamicamente usando variáveis de ambiente do Aspire
 // O Aspire injeta variáveis no formato: services__{service-name}__{endpoint-name}__{index}
@@ -67,14 +57,7 @@ var policyServiceUrl = GetServiceUrl("policy-service");
 var claimsServiceUrl = GetServiceUrl("claims-service");
 var pricingRulesServiceUrl = GetServiceUrl("pricing-rules-service");
 
-// Configurar YARP programaticamente
-// Nota: HttpSys delegation não está disponível no macOS/Linux (apenas Windows)
-// O YARP funcionará com Kestrel sem problemas
-var routes = CreateRoutes();
-var clusters = CreateClusters(quoteServiceUrl, policyServiceUrl, claimsServiceUrl, pricingRulesServiceUrl);
-
-// Criar configuração em memória e converter para IConfiguration
-// Isso evita problemas com HttpSys delegation no macOS
+// Configurar YARP usando configuração em memória (igual ao Modern.Gateway, mas dinâmico)
 var configDict = new Dictionary<string, string?>
 {
     ["ReverseProxy:Routes:quote-service:ClusterId"] = "quote-service-cluster",
@@ -108,100 +91,4 @@ app.UseRouting();
 app.MapReverseProxy();
 
 app.Run();
-
-// Configuração de rotas
-static RouteConfig[] CreateRoutes()
-{
-    return new[]
-    {
-        new RouteConfig
-        {
-            RouteId = "quote-service",
-            ClusterId = "quote-service-cluster",
-            Match = new RouteMatch
-            {
-                Path = "/QuoteService.svc/{**catch-all}"
-            }
-        },
-        new RouteConfig
-        {
-            RouteId = "policy-service",
-            ClusterId = "policy-service-cluster",
-            Match = new RouteMatch
-            {
-                Path = "/PolicyService.svc/{**catch-all}"
-            }
-        },
-        new RouteConfig
-        {
-            RouteId = "claims-service",
-            ClusterId = "claims-service-cluster",
-            Match = new RouteMatch
-            {
-                Path = "/ClaimsService.svc/{**catch-all}"
-            }
-        },
-        new RouteConfig
-        {
-            RouteId = "pricing-rules-service",
-            ClusterId = "pricing-rules-service-cluster",
-            Match = new RouteMatch
-            {
-                Path = "/PricingRulesService.svc/{**catch-all}"
-            }
-        }
-    };
-}
-
-// Configuração de clusters usando URLs dinâmicas do Aspire
-static ClusterConfig[] CreateClusters(string quoteUrl, string policyUrl, string claimsUrl, string pricingRulesUrl)
-{
-    return new[]
-    {
-        new ClusterConfig
-        {
-            ClusterId = "quote-service-cluster",
-            Destinations = new Dictionary<string, DestinationConfig>
-            {
-                ["destination1"] = new DestinationConfig
-                {
-                    Address = quoteUrl
-                }
-            }
-        },
-        new ClusterConfig
-        {
-            ClusterId = "policy-service-cluster",
-            Destinations = new Dictionary<string, DestinationConfig>
-            {
-                ["destination1"] = new DestinationConfig
-                {
-                    Address = policyUrl
-                }
-            }
-        },
-        new ClusterConfig
-        {
-            ClusterId = "claims-service-cluster",
-            Destinations = new Dictionary<string, DestinationConfig>
-            {
-                ["destination1"] = new DestinationConfig
-                {
-                    Address = claimsUrl
-                }
-            }
-        },
-        new ClusterConfig
-        {
-            ClusterId = "pricing-rules-service-cluster",
-            Destinations = new Dictionary<string, DestinationConfig>
-            {
-                ["destination1"] = new DestinationConfig
-                {
-                    Address = pricingRulesUrl
-                }
-            }
-        }
-    };
-}
 
