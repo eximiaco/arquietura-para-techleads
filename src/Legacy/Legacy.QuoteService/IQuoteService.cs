@@ -18,16 +18,16 @@ public interface IQuoteService
 [MessageContract]
 public class QuoteRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public int CustomerId { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public string VehiclePlate { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 3)]
     public string VehicleModel { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 4)]
     public int VehicleYear { get; set; }
 }
 

@@ -70,9 +70,9 @@ public class QuoteServiceClient : IQuoteServiceClient
             _logger.LogInformation("Creating quote request - CustomerId: {CustomerId}, Plate: {Plate}, Model: {Model}, Year: {Year}", 
                 customerId, vehiclePlate, vehicleModel, vehicleYear);
             
-            // IMPORTANTE: O nome do elemento deve ser o nome da classe MessageContract (QuoteRequest), não GetQuoteRequest
-            // IMPORTANTE: Cada elemento filho deve ter o namespace explícito usando prefixo, como no Legacy-Services.http
-            var soapBody = $@"<legacy:QuoteRequest xmlns:legacy=""{Namespace}"">
+            // IMPORTANTE: Usar o formato EXATO do Legacy-Services.http que funciona
+            // O namespace legacy deve ser definido no Envelope, não no elemento QuoteRequest
+            var soapBody = $@"<legacy:QuoteRequest>
                 <legacy:CustomerId>{customerId}</legacy:CustomerId>
                 <legacy:VehiclePlate>{EscapeXml(vehiclePlate)}</legacy:VehiclePlate>
                 <legacy:VehicleModel>{EscapeXml(vehicleModel)}</legacy:VehicleModel>
@@ -80,7 +80,9 @@ public class QuoteServiceClient : IQuoteServiceClient
             </legacy:QuoteRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
-            _logger.LogDebug("SOAP envelope: {Envelope}", soapEnvelope);
+            // Log completo do envelope SOAP para diagnóstico
+            _logger.LogInformation("SOAP envelope being sent (length: {Length}): {Envelope}", 
+                soapEnvelope.Length, soapEnvelope);
             
             var response = await SendSoapRequestAsync("/QuoteService.svc", "IQuoteService/GetQuote", soapEnvelope);
             
@@ -97,7 +99,7 @@ public class QuoteServiceClient : IQuoteServiceClient
     {
         try
         {
-            var soapBody = $@"<legacy:GetQuotesByCustomerRequest xmlns:legacy=""{Namespace}"">
+            var soapBody = $@"<legacy:GetQuotesByCustomerRequest>
                 <legacy:CustomerId>{customerId}</legacy:CustomerId>
             </legacy:GetQuotesByCustomerRequest>";
 
@@ -117,7 +119,7 @@ public class QuoteServiceClient : IQuoteServiceClient
     {
         try
         {
-            var soapBody = $@"<legacy:ApproveQuoteRequest xmlns:legacy=""{Namespace}"">
+            var soapBody = $@"<legacy:ApproveQuoteRequest>
                 <legacy:QuoteNumber>{EscapeXml(quoteNumber)}</legacy:QuoteNumber>
             </legacy:ApproveQuoteRequest>";
 
@@ -135,9 +137,10 @@ public class QuoteServiceClient : IQuoteServiceClient
 
     private string BuildSoapEnvelope(string body)
     {
-        // Usar o mesmo formato do Legacy-Services.http que funciona
+        // Usar o formato EXATO do Legacy-Services.http que funciona
+        // O namespace legacy deve ser definido no Envelope, não no body
         return $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"">
+<soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:legacy=""{Namespace}"">
     <soap:Body>
         {body}
     </soap:Body>
