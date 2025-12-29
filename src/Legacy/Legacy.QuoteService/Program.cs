@@ -14,6 +14,10 @@ builder.Services.AddSeguroAutoData(builder.Configuration);
 // Fault Injection
 builder.Services.AddFaultInjection(builder.Configuration);
 
+// Registrar o serviço no DI container para o CoreWCF poder instanciá-lo
+// Usar Transient para que cada requisição SOAP receba uma nova instância
+builder.Services.AddTransient<QuoteService>();
+
 // CoreWCF
 builder.Services.AddServiceModelServices();
 builder.Services.AddServiceModelMetadata();
@@ -39,6 +43,8 @@ app.UseRouting();
 app.UseFaultInjection();
 
 // 3. CoreWCF - configura os endpoints SOAP
+// O CoreWCF usa automaticamente o ServiceProvider se AddServiceModelServices() foi chamado
+// e o serviço estiver registrado no DI (já registrado acima como Transient)
 app.UseServiceModel(serviceBuilder =>
 {
     serviceBuilder

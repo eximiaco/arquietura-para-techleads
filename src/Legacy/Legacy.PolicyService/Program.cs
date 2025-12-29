@@ -9,6 +9,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddSeguroAutoData(builder.Configuration);
 builder.Services.AddFaultInjection(builder.Configuration);
+
+// Registrar o serviço no DI container para o CoreWCF poder instanciá-lo
+// Usar Transient para que cada requisição SOAP receba uma nova instância
+builder.Services.AddTransient<PolicyService>();
+
 builder.Services.AddServiceModelServices();
 builder.Services.AddServiceModelMetadata();
 builder.Services.AddSingleton<IServiceBehavior, UseRequestHeadersForMetadataAddressBehavior>();
