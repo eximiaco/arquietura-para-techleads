@@ -20,8 +20,31 @@ public class QuoteService : IQuoteService
     {
         try
         {
-            _logger.LogInformation("GetQuote called for CustomerId: {CustomerId}, Vehicle: {VehicleModel}", 
-                request.CustomerId, request.VehicleModel);
+            // Log detalhado do request recebido
+            _logger.LogInformation("GetQuote called - CustomerId: {CustomerId}, VehicleModel: '{VehicleModel}' (IsNull: {IsNull}, Length: {Length}), VehiclePlate: '{VehiclePlate}' (IsNull: {IsNull2}, Length: {Length2}), VehicleYear: {VehicleYear}", 
+                request.CustomerId, 
+                request.VehicleModel ?? "<NULL>", 
+                request.VehicleModel == null, 
+                request.VehicleModel?.Length ?? -1,
+                request.VehiclePlate ?? "<NULL>",
+                request.VehiclePlate == null,
+                request.VehiclePlate?.Length ?? -1,
+                request.VehicleYear);
+
+            // Validação dos campos obrigatórios
+            if (string.IsNullOrWhiteSpace(request.VehicleModel))
+            {
+                _logger.LogError("VehicleModel is null or empty for CustomerId: {CustomerId}. Request details - Plate: '{Plate}', Year: {Year}", 
+                    request.CustomerId, request.VehiclePlate ?? "<NULL>", request.VehicleYear);
+                throw new FaultException("VehicleModel is required");
+            }
+            
+            if (string.IsNullOrWhiteSpace(request.VehiclePlate))
+            {
+                _logger.LogError("VehiclePlate is null or empty for CustomerId: {CustomerId}. Request details - Model: '{Model}', Year: {Year}", 
+                    request.CustomerId, request.VehicleModel ?? "<NULL>", request.VehicleYear);
+                throw new FaultException("VehiclePlate is required");
+            }
 
             var customer = _context.Customers.Find(request.CustomerId);
             if (customer == null)
@@ -40,8 +63,8 @@ public class QuoteService : IQuoteService
             {
                 QuoteNumber = $"QUOTE-{DateTime.UtcNow:yyyyMMddHHmmss}",
                 CustomerId = request.CustomerId,
-                VehiclePlate = request.VehiclePlate,
-                VehicleModel = request.VehicleModel,
+                VehiclePlate = request.VehiclePlate ?? string.Empty,
+                VehicleModel = request.VehicleModel ?? string.Empty,
                 VehicleYear = request.VehicleYear,
                 Premium = finalPremium,
                 Status = QuoteStatus.Pending,

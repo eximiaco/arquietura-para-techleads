@@ -54,21 +54,40 @@ public class QuoteServiceClient : IQuoteServiceClient
     {
         try
         {
-            var soapBody = $@"<GetQuoteRequest xmlns=""{Namespace}"">
+            // Validação dos parâmetros
+            if (string.IsNullOrWhiteSpace(vehicleModel))
+            {
+                _logger.LogWarning("VehicleModel is null or empty for CustomerId: {CustomerId}", customerId);
+                throw new ArgumentException("VehicleModel is required", nameof(vehicleModel));
+            }
+            
+            if (string.IsNullOrWhiteSpace(vehiclePlate))
+            {
+                _logger.LogWarning("VehiclePlate is null or empty for CustomerId: {CustomerId}", customerId);
+                throw new ArgumentException("VehiclePlate is required", nameof(vehiclePlate));
+            }
+            
+            _logger.LogInformation("Creating quote request - CustomerId: {CustomerId}, Plate: {Plate}, Model: {Model}, Year: {Year}", 
+                customerId, vehiclePlate, vehicleModel, vehicleYear);
+            
+            // IMPORTANTE: O nome do elemento deve ser o nome da classe MessageContract (QuoteRequest), não GetQuoteRequest
+            var soapBody = $@"<QuoteRequest xmlns=""{Namespace}"">
                 <CustomerId>{customerId}</CustomerId>
                 <VehiclePlate>{EscapeXml(vehiclePlate)}</VehiclePlate>
                 <VehicleModel>{EscapeXml(vehicleModel)}</VehicleModel>
                 <VehicleYear>{vehicleYear}</VehicleYear>
-            </GetQuoteRequest>";
+            </QuoteRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
+            _logger.LogDebug("SOAP envelope: {Envelope}", soapEnvelope);
+            
             var response = await SendSoapRequestAsync("/QuoteService.svc", "IQuoteService/GetQuote", soapEnvelope);
             
             return ParseQuoteResponse(response);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calling GetQuote for CustomerId: {CustomerId}", customerId);
+            _logger.LogError(ex, "Error calling GetQuote for CustomerId: {CustomerId}, VehicleModel: {VehicleModel}", customerId, vehicleModel);
             throw;
         }
     }
@@ -171,8 +190,13 @@ public class QuoteServiceClient : IQuoteServiceClient
             }
 
             var responseContent = await response.Content.ReadAsStringAsync();
+            
+            // Log completo da resposta para diagnóstico (limitado a 1000 caracteres)
+            var logContent = responseContent.Length > 1000 
+                ? responseContent.Substring(0, 1000) + "..." 
+                : responseContent;
             _logger.LogInformation("SOAP response received (length: {Length}): {Response}", 
-                responseContent.Length, responseContent.Length > 500 ? responseContent.Substring(0, 500) + "..." : responseContent);
+                responseContent.Length, logContent);
             
             return responseContent;
         }

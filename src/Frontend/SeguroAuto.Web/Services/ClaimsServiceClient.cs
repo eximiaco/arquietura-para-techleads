@@ -105,15 +105,30 @@ public class ClaimsServiceClient : IClaimsServiceClient
 
     private async Task<string> SendSoapRequestAsync(string endpoint, string soapAction, string soapEnvelope)
     {
-        var httpClient = _httpClientFactory.CreateClient();
-        var url = $"{_gatewayUrl.TrimEnd('/')}{endpoint}";
-        var content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
-        content.Headers.Add("SOAPAction", $"{Namespace}/{soapAction}");
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient();
+            var url = $"{_gatewayUrl.TrimEnd('/')}{endpoint}";
+            var content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
+            content.Headers.Add("SOAPAction", $"{Namespace}/{soapAction}");
 
-        var response = await httpClient.PostAsync(url, content);
-        response.EnsureSuccessStatusCode();
+            var response = await httpClient.PostAsync(url, content);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("SOAP request failed with status {StatusCode}. Response: {Response}", 
+                    response.StatusCode, errorContent);
+                response.EnsureSuccessStatusCode();
+            }
 
-        return await response.Content.ReadAsStringAsync();
+            return await response.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error when calling SOAP endpoint {Endpoint}", endpoint);
+            throw;
+        }
     }
 
     private ClaimResponse ParseClaimResponse(string xml)
