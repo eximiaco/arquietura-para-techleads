@@ -1,22 +1,23 @@
-### Variáveis de ambiente
-### Configure estas variáveis no VS Code ou ajuste os valores diretamente
-### 
-### USO COM GATEWAY (RECOMENDADO):
-### Quando executando via Aspire com o Legacy.Gateway, use @gatewayUrl.
-### O gateway descobre automaticamente as URLs dos serviços usando service discovery do Aspire.
-### Você não precisa conhecer as portas individuais dos serviços!
-### 
-### USO DIRETO (SEM GATEWAY):
-### Se quiser chamar os serviços diretamente, use @baseUrl e ajuste para a porta correta
-### de cada serviço (verifique no Aspire Dashboard).
-### 
-@gatewayUrl = http://localhost:5000
+### Legacy Services HTTP Requests
+@gatewayUrl = http://localhost:60485
 @baseUrl = http://localhost:5000
 @namespace = http://eximia.co/seguroauto/legacy
 @customerId = 999
 @policyNumber = AUTO-1234
 @claimNumber = CLAIM-ANCHOR-1234
 @quoteNumber = QUOTE-ANCHOR-999
+
+### Variáveis de ambiente
+### Configure estas variáveis no VS Code ou ajuste os valores diretamente
+###
+### USO COM GATEWAY (RECOMENDADO):
+### Quando executando via Aspire com o Legacy.Gateway, use @gatewayUrl.
+### O gateway descobre automaticamente as URLs dos serviços usando service discovery do Aspire.
+### Você não precisa conhecer as portas individuais dos serviços!
+###
+### USO DIRETO (SEM GATEWAY):
+### Se quiser chamar os serviços diretamente, use @baseUrl e ajuste para a porta correta
+### de cada serviço (verifique no Aspire Dashboard).
 
 ### ============================================
 ### QuoteService
