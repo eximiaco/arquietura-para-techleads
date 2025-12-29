@@ -19,6 +19,13 @@ builder.Services.AddServiceModelServices();
 builder.Services.AddServiceModelMetadata();
 builder.Services.AddSingleton<IServiceBehavior, UseRequestHeadersForMetadataAddressBehavior>();
 
+// Habilitar detalhes de exceção em SOAP faults para desenvolvimento/debug
+builder.Services.AddSingleton<IServiceBehavior>(sp => new ServiceDebugBehavior
+{
+    IncludeExceptionDetailInFaults = true,
+    HttpHelpPageEnabled = true
+});
+
 var app = builder.Build();
 
 // Seeding do banco

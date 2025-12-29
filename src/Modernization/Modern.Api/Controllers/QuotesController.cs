@@ -21,73 +21,113 @@ public class QuotesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<QuoteDto>> CreateQuote([FromBody] CreateQuoteRequest request)
     {
-        var customer = await _context.Customers.FindAsync(request.CustomerId);
-        if (customer == null)
+        try
         {
-            return NotFound(new { error = "Customer not found" });
+            _logger.LogInformation("CreateQuote called for CustomerId: {CustomerId}, Vehicle: {VehicleModel}", 
+                request.CustomerId, request.VehicleModel);
+
+            var customer = await _context.Customers.FindAsync(request.CustomerId);
+            if (customer == null)
+            {
+                _logger.LogWarning("Customer not found: {CustomerId}", request.CustomerId);
+                return NotFound(new { error = "Customer not found" });
+            }
+
+            var basePremium = CalculateBasePremium(request.VehicleYear, request.VehicleModel);
+            var finalPremium = await ApplyPricingRulesAsync(basePremium, request, customer);
+
+            var quote = new Quote
+            {
+                QuoteNumber = $"QUOTE-{DateTime.UtcNow:yyyyMMddHHmmss}",
+                CustomerId = request.CustomerId,
+                VehiclePlate = request.VehiclePlate,
+                VehicleModel = request.VehicleModel,
+                VehicleYear = request.VehicleYear,
+                Premium = finalPremium,
+                Status = QuoteStatus.Pending,
+                ValidUntil = DateTime.UtcNow.AddDays(30),
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Quotes.Add(quote);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Quote created: {QuoteNumber} for CustomerId: {CustomerId} with Premium: {Premium}", 
+                quote.QuoteNumber, request.CustomerId, quote.Premium);
+
+            return Ok(new QuoteDto
+            {
+                QuoteNumber = quote.QuoteNumber,
+                CustomerId = quote.CustomerId,
+                Premium = quote.Premium,
+                ValidUntil = quote.ValidUntil,
+                Status = quote.Status.ToString()
+            });
         }
-
-        var basePremium = CalculateBasePremium(request.VehicleYear, request.VehicleModel);
-        var finalPremium = await ApplyPricingRulesAsync(basePremium, request, customer);
-
-        var quote = new Quote
+        catch (Exception ex)
         {
-            QuoteNumber = $"QUOTE-{DateTime.UtcNow:yyyyMMddHHmmss}",
-            CustomerId = request.CustomerId,
-            VehiclePlate = request.VehiclePlate,
-            VehicleModel = request.VehicleModel,
-            VehicleYear = request.VehicleYear,
-            Premium = finalPremium,
-            Status = QuoteStatus.Pending,
-            ValidUntil = DateTime.UtcNow.AddDays(30),
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _context.Quotes.Add(quote);
-        await _context.SaveChangesAsync();
-
-        return Ok(new QuoteDto
-        {
-            QuoteNumber = quote.QuoteNumber,
-            CustomerId = quote.CustomerId,
-            Premium = quote.Premium,
-            ValidUntil = quote.ValidUntil,
-            Status = quote.Status.ToString()
-        });
+            _logger.LogError(ex, "Error in CreateQuote for CustomerId: {CustomerId}", request.CustomerId);
+            return StatusCode(500, new { error = "Internal server error", message = ex.Message });
+        }
     }
 
     [HttpGet("customer/{customerId}")]
     public async Task<ActionResult<QuoteDto[]>> GetQuotesByCustomer(int customerId)
     {
-        var quotes = await _context.Quotes
-            .Where(q => q.CustomerId == customerId)
-            .OrderByDescending(q => q.CreatedAt)
-            .Take(10)
-            .ToListAsync();
-
-        return Ok(quotes.Select(q => new QuoteDto
+        try
         {
-            QuoteNumber = q.QuoteNumber,
-            CustomerId = q.CustomerId,
-            Premium = q.Premium,
-            ValidUntil = q.ValidUntil,
-            Status = q.Status.ToString()
-        }).ToArray());
+            _logger.LogInformation("GetQuotesByCustomer called for CustomerId: {CustomerId}", customerId);
+
+            var quotes = await _context.Quotes
+                .Where(q => q.CustomerId == customerId)
+                .OrderByDescending(q => q.CreatedAt)
+                .Take(10)
+                .ToListAsync();
+
+            _logger.LogInformation("Found {Count} quotes for CustomerId: {CustomerId}", quotes.Count, customerId);
+
+            return Ok(quotes.Select(q => new QuoteDto
+            {
+                QuoteNumber = q.QuoteNumber,
+                CustomerId = q.CustomerId,
+                Premium = q.Premium,
+                ValidUntil = q.ValidUntil,
+                Status = q.Status.ToString()
+            }).ToArray());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetQuotesByCustomer for CustomerId: {CustomerId}", customerId);
+            return StatusCode(500, new { error = "Internal server error", message = ex.Message });
+        }
     }
 
     [HttpPost("{quoteNumber}/approve")]
     public async Task<ActionResult> ApproveQuote(string quoteNumber)
     {
-        var quote = await _context.Quotes.FirstOrDefaultAsync(q => q.QuoteNumber == quoteNumber);
-        if (quote == null)
+        try
         {
-            return NotFound();
+            _logger.LogInformation("ApproveQuote called for QuoteNumber: {QuoteNumber}", quoteNumber);
+
+            var quote = await _context.Quotes.FirstOrDefaultAsync(q => q.QuoteNumber == quoteNumber);
+            if (quote == null)
+            {
+                _logger.LogWarning("Quote not found: {QuoteNumber}", quoteNumber);
+                return NotFound();
+            }
+
+            quote.Status = QuoteStatus.Approved;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Quote approved: {QuoteNumber}", quoteNumber);
+
+            return Ok();
         }
-
-        quote.Status = QuoteStatus.Approved;
-        await _context.SaveChangesAsync();
-
-        return Ok();
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in ApproveQuote for QuoteNumber: {QuoteNumber}", quoteNumber);
+            return StatusCode(500, new { error = "Internal server error", message = ex.Message });
+        }
     }
 
     private decimal CalculateBasePremium(int vehicleYear, string vehicleModel)
