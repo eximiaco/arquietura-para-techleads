@@ -7,24 +7,12 @@
 @claimNumber = CLAIM-ANCHOR-1234
 @quoteNumber = QUOTE-ANCHOR-999
 
-### Variáveis de ambiente
-### Configure estas variáveis no VS Code ou ajuste os valores diretamente
-###
-### USO COM GATEWAY (RECOMENDADO):
-### Quando executando via Aspire com o Legacy.Gateway, use @gatewayUrl.
-### O gateway descobre automaticamente as URLs dos serviços usando service discovery do Aspire.
-### Você não precisa conhecer as portas individuais dos serviços!
-###
-### USO DIRETO (SEM GATEWAY):
-### Se quiser chamar os serviços diretamente, use @baseUrl e ajuste para a porta correta
-### de cada serviço (verifique no Aspire Dashboard).
 
 ### ============================================
 ### QuoteService
 ### ============================================
 
 ### GetQuote - Criar uma nova cotação
-### Usa o gateway - não precisa conhecer a porta do serviço!
 POST {{gatewayUrl}}/QuoteService.svc
 Content-Type: text/xml; charset=utf-8
 SOAPAction: "{{namespace}}/IQuoteService/GetQuote"
