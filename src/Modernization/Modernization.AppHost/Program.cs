@@ -17,7 +17,19 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECU
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var dbPath = builder.Configuration["DB_PATH"] ?? "./data/modernization.db";
+// Banco de dados SQLite - caminho absoluto baseado no diretório do projeto
+var defaultDbPath = Path.Combine(
+    Directory.GetCurrentDirectory(),
+    "..", "..", "..", "..", "data", "modernization.db"
+);
+var dbPath = Path.GetFullPath(builder.Configuration["DB_PATH"] ?? defaultDbPath);
+
+// Garante que o diretório existe
+var dbDirectory = Path.GetDirectoryName(dbPath);
+if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
+{
+    Directory.CreateDirectory(dbDirectory);
+}
 
 // Modern API
 var modernApi = builder.AddProject<Projects.Modern_Api>("modern-api")

@@ -11,6 +11,21 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         var dbPath = configuration["DB_PATH"] ?? "./data/legacy.db";
+        
+        // Converte caminho relativo para absoluto e garante que o diretório existe
+        if (!Path.IsPathRooted(dbPath))
+        {
+            var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            dbPath = Path.GetFullPath(Path.Combine(baseDirectory, dbPath));
+        }
+        
+        // Garante que o diretório do banco existe
+        var dbDirectory = Path.GetDirectoryName(dbPath);
+        if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
+        {
+            Directory.CreateDirectory(dbDirectory);
+        }
+        
         var connectionString = $"Data Source={dbPath}";
 
         services.AddDbContext<SeguroAutoDbContext>(options =>

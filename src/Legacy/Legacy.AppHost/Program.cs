@@ -17,8 +17,19 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECU
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Banco de dados SQLite - caminho local
-var dbPath = builder.Configuration["DB_PATH"] ?? "./data/legacy.db";
+// Banco de dados SQLite - caminho absoluto baseado no diretório do projeto
+var defaultDbPath = Path.Combine(
+    Directory.GetCurrentDirectory(),
+    "..", "..", "..", "..", "data", "legacy.db"
+);
+var dbPath = Path.GetFullPath(builder.Configuration["DB_PATH"] ?? defaultDbPath);
+
+// Garante que o diretório existe
+var dbDirectory = Path.GetDirectoryName(dbPath);
+if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
+{
+    Directory.CreateDirectory(dbDirectory);
+}
 
 // Serviços Legacy
 var quoteService = builder.AddProject<Projects.Legacy_QuoteService>("quote-service")
