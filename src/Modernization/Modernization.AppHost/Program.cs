@@ -1,3 +1,14 @@
+// Configurar variáveis de ambiente do dashboard antes de criar o builder
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
+{
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:15000");
+}
+
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL")))
+{
+    Environment.SetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL", "http://localhost:15001");
+}
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 var dbPath = builder.Configuration["DB_PATH"] ?? "./data/modernization.db";
