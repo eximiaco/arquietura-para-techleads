@@ -71,12 +71,13 @@ public class QuoteServiceClient : IQuoteServiceClient
                 customerId, vehiclePlate, vehicleModel, vehicleYear);
             
             // IMPORTANTE: O nome do elemento deve ser o nome da classe MessageContract (QuoteRequest), não GetQuoteRequest
-            var soapBody = $@"<QuoteRequest xmlns=""{Namespace}"">
-                <CustomerId>{customerId}</CustomerId>
-                <VehiclePlate>{EscapeXml(vehiclePlate)}</VehiclePlate>
-                <VehicleModel>{EscapeXml(vehicleModel)}</VehicleModel>
-                <VehicleYear>{vehicleYear}</VehicleYear>
-            </QuoteRequest>";
+            // IMPORTANTE: Cada elemento filho deve ter o namespace explícito usando prefixo, como no Legacy-Services.http
+            var soapBody = $@"<legacy:QuoteRequest xmlns:legacy=""{Namespace}"">
+                <legacy:CustomerId>{customerId}</legacy:CustomerId>
+                <legacy:VehiclePlate>{EscapeXml(vehiclePlate)}</legacy:VehiclePlate>
+                <legacy:VehicleModel>{EscapeXml(vehicleModel)}</legacy:VehicleModel>
+                <legacy:VehicleYear>{vehicleYear}</legacy:VehicleYear>
+            </legacy:QuoteRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
             _logger.LogDebug("SOAP envelope: {Envelope}", soapEnvelope);
@@ -96,9 +97,9 @@ public class QuoteServiceClient : IQuoteServiceClient
     {
         try
         {
-            var soapBody = $@"<GetQuotesByCustomerRequest xmlns=""{Namespace}"">
-                <CustomerId>{customerId}</CustomerId>
-            </GetQuotesByCustomerRequest>";
+            var soapBody = $@"<legacy:GetQuotesByCustomerRequest xmlns:legacy=""{Namespace}"">
+                <legacy:CustomerId>{customerId}</legacy:CustomerId>
+            </legacy:GetQuotesByCustomerRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
             var response = await SendSoapRequestAsync("/QuoteService.svc", "IQuoteService/GetQuotesByCustomer", soapEnvelope);
@@ -116,9 +117,9 @@ public class QuoteServiceClient : IQuoteServiceClient
     {
         try
         {
-            var soapBody = $@"<ApproveQuoteRequest xmlns=""{Namespace}"">
-                <QuoteNumber>{EscapeXml(quoteNumber)}</QuoteNumber>
-            </ApproveQuoteRequest>";
+            var soapBody = $@"<legacy:ApproveQuoteRequest xmlns:legacy=""{Namespace}"">
+                <legacy:QuoteNumber>{EscapeXml(quoteNumber)}</legacy:QuoteNumber>
+            </legacy:ApproveQuoteRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
             var response = await SendSoapRequestAsync("/QuoteService.svc", "IQuoteService/ApproveQuote", soapEnvelope);
@@ -134,12 +135,13 @@ public class QuoteServiceClient : IQuoteServiceClient
 
     private string BuildSoapEnvelope(string body)
     {
+        // Usar o mesmo formato do Legacy-Services.http que funciona
         return $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<s:Envelope xmlns:s=""http://schemas.xmlsoap.org/soap/envelope/"">
-    <s:Body>
+<soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"">
+    <soap:Body>
         {body}
-    </s:Body>
-</s:Envelope>";
+    </soap:Body>
+</soap:Envelope>";
     }
 
     private async Task<string> SendSoapRequestAsync(string endpoint, string soapAction, string soapEnvelope)
