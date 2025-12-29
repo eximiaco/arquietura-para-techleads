@@ -2,6 +2,15 @@ using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Garantir que estamos usando apenas Kestrel (não HttpSys)
+// HttpSys não está disponível no macOS/Linux
+builder.WebHost.UseKestrel();
+
+// Desabilitar HttpSys delegation no YARP para evitar TypeLoadException no macOS
+// O YARP tentará usar HttpSys delegation automaticamente se detectar HttpSys,
+// mas como estamos usando Kestrel, precisamos evitar essa tentativa
+Environment.SetEnvironmentVariable("ASPNETCORE_SERVER_URLS", "");
+
 // Configurar YARP dinamicamente usando variáveis de ambiente do Aspire
 // O Aspire injeta variáveis no formato: services__{service-name}__{endpoint-name}__{index}
 // Por exemplo: services__quote-service__http__0
@@ -58,8 +67,13 @@ var claimsServiceUrl = GetServiceUrl("claims-service");
 var pricingRulesServiceUrl = GetServiceUrl("pricing-rules-service");
 
 // Configurar YARP programaticamente
+// Nota: HttpSys delegation não está disponível no macOS/Linux (apenas Windows)
+// O YARP funcionará com Kestrel sem problemas
+var routes = CreateRoutes();
+var clusters = CreateClusters(quoteServiceUrl, policyServiceUrl, claimsServiceUrl, pricingRulesServiceUrl);
+
 builder.Services.AddReverseProxy()
-    .LoadFromMemory(CreateRoutes(), CreateClusters(quoteServiceUrl, policyServiceUrl, claimsServiceUrl, pricingRulesServiceUrl));
+    .LoadFromMemory(routes, clusters);
 
 var app = builder.Build();
 
