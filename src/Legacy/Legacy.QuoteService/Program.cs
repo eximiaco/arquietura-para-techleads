@@ -24,10 +24,14 @@ var app = builder.Build();
 // Seeding do banco
 await app.Services.SeedDatabaseAsync();
 
-// Fault Injection Middleware (antes do CoreWCF)
+// Ordem correta dos middlewares:
+// 1. UseRouting - necessário para o roteamento funcionar corretamente
+app.UseRouting();
+
+// 2. Fault Injection Middleware (antes do CoreWCF)
 app.UseFaultInjection();
 
-// CoreWCF
+// 3. CoreWCF - configura os endpoints SOAP
 app.UseServiceModel(serviceBuilder =>
 {
     serviceBuilder

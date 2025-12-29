@@ -16,8 +16,15 @@ builder.Services.AddSingleton<IServiceBehavior, UseRequestHeadersForMetadataAddr
 var app = builder.Build();
 
 await app.Services.SeedDatabaseAsync();
+
+// Ordem correta dos middlewares:
+// 1. UseRouting - necessário para o roteamento funcionar corretamente
+app.UseRouting();
+
+// 2. Fault Injection Middleware (antes do CoreWCF)
 app.UseFaultInjection();
 
+// 3. CoreWCF - configura os endpoints SOAP
 app.UseServiceModel(serviceBuilder =>
 {
     serviceBuilder

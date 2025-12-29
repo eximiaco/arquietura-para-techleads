@@ -5,7 +5,11 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
-// Feature flag middleware
+// Ordem correta dos middlewares:
+// 1. UseRouting - necessário para o roteamento funcionar corretamente
+app.UseRouting();
+
+// 2. Feature flag middleware (modifica o path antes do reverse proxy)
 app.Use(async (context, next) =>
 {
     var useModern = Environment.GetEnvironmentVariable("USE_MODERN_API")?.ToLower() == "true";
@@ -24,6 +28,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// 3. YARP Reverse Proxy - roteia requisições para os serviços backend
 app.MapReverseProxy();
 
 app.Run();
