@@ -23,50 +23,50 @@ public class GetAllRulesRequest
 [MessageContract]
 public class GetAllRulesResponse
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public PricingRuleResponse[] Rules { get; set; } = Array.Empty<PricingRuleResponse>();
 }
 
 [MessageContract]
 public class GetRuleRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public int RuleId { get; set; }
 }
 
 [MessageContract]
 public class PricingRuleResponse
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public int Id { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public string Name { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 3)]
     public string Description { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 4)]
     public decimal Multiplier { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 5)]
     public bool IsActive { get; set; }
 }
 
 [MessageContract]
 public class UpdateRuleRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public int Id { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public bool IsActive { get; set; }
 }
 
 [MessageContract]
 public class UpdateRuleResponse
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public bool Success { get; set; }
 }
 

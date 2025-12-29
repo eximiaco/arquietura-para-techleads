@@ -18,59 +18,59 @@ public interface IClaimsService
 [MessageContract]
 public class GetClaimRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public string ClaimNumber { get; set; } = string.Empty;
 }
 
 [MessageContract]
 public class GetClaimsByPolicyRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public string PolicyNumber { get; set; } = string.Empty;
 }
 
 [MessageContract]
 public class GetClaimsByPolicyResponse
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public ClaimResponse[] Claims { get; set; } = Array.Empty<ClaimResponse>();
 }
 
 [MessageContract]
 public class CreateClaimRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public string PolicyNumber { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public string Description { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 3)]
     public decimal Amount { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 4)]
     public DateTime IncidentDate { get; set; }
 }
 
 [MessageContract]
 public class ClaimResponse
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public string ClaimNumber { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public string PolicyNumber { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 3)]
     public string Description { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 4)]
     public decimal Amount { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 5)]
     public string Status { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 6)]
     public DateTime IncidentDate { get; set; }
 }
 

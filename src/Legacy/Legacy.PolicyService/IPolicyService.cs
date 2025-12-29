@@ -18,65 +18,65 @@ public interface IPolicyService
 [MessageContract]
 public class GetPolicyRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public string PolicyNumber { get; set; } = string.Empty;
 }
 
 [MessageContract]
 public class GetPoliciesByCustomerRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public int CustomerId { get; set; }
 }
 
 [MessageContract]
 public class GetPoliciesByCustomerResponse
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public PolicyResponse[] Policies { get; set; } = Array.Empty<PolicyResponse>();
 }
 
 [MessageContract]
 public class CreatePolicyRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public int CustomerId { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public string VehiclePlate { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 3)]
     public string VehicleModel { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 4)]
     public int VehicleYear { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 5)]
     public decimal Premium { get; set; }
 }
 
 [MessageContract]
 public class PolicyResponse
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public string PolicyNumber { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public int CustomerId { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 3)]
     public string VehiclePlate { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 4)]
     public decimal Premium { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 5)]
     public DateTime StartDate { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 6)]
     public DateTime EndDate { get; set; }
 
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 7)]
     public string Status { get; set; } = string.Empty;
 }
 

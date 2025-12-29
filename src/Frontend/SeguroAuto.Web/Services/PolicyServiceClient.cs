@@ -34,9 +34,9 @@ public class PolicyServiceClient : IPolicyServiceClient
     {
         try
         {
-            var soapBody = $@"<GetPolicyRequest xmlns=""{Namespace}"">
-                <PolicyNumber>{EscapeXml(policyNumber)}</PolicyNumber>
-            </GetPolicyRequest>";
+            var soapBody = $@"<legacy:GetPolicyRequest>
+                <legacy:PolicyNumber>{EscapeXml(policyNumber)}</legacy:PolicyNumber>
+            </legacy:GetPolicyRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
             var response = await SendSoapRequestAsync("/PolicyService.svc", "IPolicyService/GetPolicy", soapEnvelope);
@@ -54,9 +54,9 @@ public class PolicyServiceClient : IPolicyServiceClient
     {
         try
         {
-            var soapBody = $@"<GetPoliciesByCustomerRequest xmlns=""{Namespace}"">
-                <CustomerId>{customerId}</CustomerId>
-            </GetPoliciesByCustomerRequest>";
+            var soapBody = $@"<legacy:GetPoliciesByCustomerRequest>
+                <legacy:CustomerId>{customerId}</legacy:CustomerId>
+            </legacy:GetPoliciesByCustomerRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
             var response = await SendSoapRequestAsync("/PolicyService.svc", "IPolicyService/GetPoliciesByCustomer", soapEnvelope);
@@ -74,13 +74,13 @@ public class PolicyServiceClient : IPolicyServiceClient
     {
         try
         {
-            var soapBody = $@"<CreatePolicyRequest xmlns=""{Namespace}"">
-                <CustomerId>{customerId}</CustomerId>
-                <VehiclePlate>{EscapeXml(vehiclePlate)}</VehiclePlate>
-                <VehicleModel>{EscapeXml(vehicleModel)}</VehicleModel>
-                <VehicleYear>{vehicleYear}</VehicleYear>
-                <Premium>{premium}</Premium>
-            </CreatePolicyRequest>";
+            var soapBody = $@"<legacy:CreatePolicyRequest>
+                <legacy:CustomerId>{customerId}</legacy:CustomerId>
+                <legacy:VehiclePlate>{EscapeXml(vehiclePlate)}</legacy:VehiclePlate>
+                <legacy:VehicleModel>{EscapeXml(vehicleModel)}</legacy:VehicleModel>
+                <legacy:VehicleYear>{vehicleYear}</legacy:VehicleYear>
+                <legacy:Premium>{premium}</legacy:Premium>
+            </legacy:CreatePolicyRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
             var response = await SendSoapRequestAsync("/PolicyService.svc", "IPolicyService/CreatePolicy", soapEnvelope);
@@ -96,12 +96,14 @@ public class PolicyServiceClient : IPolicyServiceClient
 
     private string BuildSoapEnvelope(string body)
     {
+        // Usar o formato EXATO do Legacy-Services.http que funciona
+        // O namespace legacy deve ser definido no Envelope, não no body
         return $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<s:Envelope xmlns:s=""http://schemas.xmlsoap.org/soap/envelope/"">
-    <s:Body>
+<soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"" xmlns:legacy=""{Namespace}"">
+    <soap:Body>
         {body}
-    </s:Body>
-</s:Envelope>";
+    </soap:Body>
+</soap:Envelope>";
     }
 
     private async Task<string> SendSoapRequestAsync(string endpoint, string soapAction, string soapEnvelope)
@@ -139,20 +141,37 @@ public class PolicyServiceClient : IPolicyServiceClient
         var legacyNs = XNamespace.Get(Namespace);
         
         var body = doc.Descendants(ns + "Body").FirstOrDefault();
-        var policyResponse = body?.Descendants(legacyNs + "PolicyResponse").FirstOrDefault();
+        // Tentar com namespace primeiro, depois sem namespace (fallback)
+        var policyResponse = body?.Descendants(legacyNs + "PolicyResponse").FirstOrDefault()
+                          ?? body?.Descendants().FirstOrDefault(e => e.Name.LocalName == "PolicyResponse");
 
         if (policyResponse == null)
             throw new InvalidOperationException("Invalid SOAP response format");
 
+        // Tentar com namespace primeiro, depois sem namespace (fallback)
         return new PolicyResponse
         {
-            PolicyNumber = policyResponse.Element(legacyNs + "PolicyNumber")?.Value ?? string.Empty,
-            CustomerId = int.Parse(policyResponse.Element(legacyNs + "CustomerId")?.Value ?? "0"),
-            VehiclePlate = policyResponse.Element(legacyNs + "VehiclePlate")?.Value ?? string.Empty,
-            Premium = decimal.Parse(policyResponse.Element(legacyNs + "Premium")?.Value ?? "0"),
-            StartDate = DateTime.Parse(policyResponse.Element(legacyNs + "StartDate")?.Value ?? DateTime.UtcNow.ToString()),
-            EndDate = DateTime.Parse(policyResponse.Element(legacyNs + "EndDate")?.Value ?? DateTime.UtcNow.ToString()),
-            Status = policyResponse.Element(legacyNs + "Status")?.Value ?? string.Empty
+            PolicyNumber = policyResponse.Element(legacyNs + "PolicyNumber")?.Value 
+                        ?? policyResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "PolicyNumber")?.Value 
+                        ?? string.Empty,
+            CustomerId = int.Parse(policyResponse.Element(legacyNs + "CustomerId")?.Value 
+                         ?? policyResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "CustomerId")?.Value 
+                         ?? "0"),
+            VehiclePlate = policyResponse.Element(legacyNs + "VehiclePlate")?.Value 
+                        ?? policyResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "VehiclePlate")?.Value 
+                        ?? string.Empty,
+            Premium = decimal.Parse(policyResponse.Element(legacyNs + "Premium")?.Value 
+                     ?? policyResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "Premium")?.Value 
+                     ?? "0"),
+            StartDate = DateTime.Parse(policyResponse.Element(legacyNs + "StartDate")?.Value 
+                        ?? policyResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "StartDate")?.Value 
+                        ?? DateTime.UtcNow.ToString()),
+            EndDate = DateTime.Parse(policyResponse.Element(legacyNs + "EndDate")?.Value 
+                      ?? policyResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "EndDate")?.Value 
+                      ?? DateTime.UtcNow.ToString()),
+            Status = policyResponse.Element(legacyNs + "Status")?.Value 
+                  ?? policyResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "Status")?.Value 
+                  ?? string.Empty
         };
     }
 
@@ -163,18 +182,41 @@ public class PolicyServiceClient : IPolicyServiceClient
         var legacyNs = XNamespace.Get(Namespace);
         
         var body = doc.Descendants(ns + "Body").FirstOrDefault();
-        var response = body?.Descendants(legacyNs + "GetPoliciesByCustomerResponse").FirstOrDefault();
-        var policies = response?.Descendants(legacyNs + "PolicyResponse") ?? Enumerable.Empty<XElement>();
+        // Tentar com namespace primeiro, depois sem namespace (fallback)
+        var response = body?.Descendants(legacyNs + "GetPoliciesByCustomerResponse").FirstOrDefault()
+                    ?? body?.Descendants().FirstOrDefault(e => e.Name.LocalName == "GetPoliciesByCustomerResponse");
+        
+        if (response == null)
+            throw new InvalidOperationException("GetPoliciesByCustomerResponse not found in SOAP response");
+        
+        // Tentar com namespace primeiro, depois sem namespace (fallback)
+        var policies = response.Descendants(legacyNs + "PolicyResponse").Any()
+            ? response.Descendants(legacyNs + "PolicyResponse")
+            : response.Descendants().Where(e => e.Name.LocalName == "PolicyResponse");
 
         return policies.Select(p => new PolicyResponse
         {
-            PolicyNumber = p.Element(legacyNs + "PolicyNumber")?.Value ?? string.Empty,
-            CustomerId = int.Parse(p.Element(legacyNs + "CustomerId")?.Value ?? "0"),
-            VehiclePlate = p.Element(legacyNs + "VehiclePlate")?.Value ?? string.Empty,
-            Premium = decimal.Parse(p.Element(legacyNs + "Premium")?.Value ?? "0"),
-            StartDate = DateTime.Parse(p.Element(legacyNs + "StartDate")?.Value ?? DateTime.UtcNow.ToString()),
-            EndDate = DateTime.Parse(p.Element(legacyNs + "EndDate")?.Value ?? DateTime.UtcNow.ToString()),
-            Status = p.Element(legacyNs + "Status")?.Value ?? string.Empty
+            PolicyNumber = p.Element(legacyNs + "PolicyNumber")?.Value 
+                        ?? p.Descendants().FirstOrDefault(e => e.Name.LocalName == "PolicyNumber")?.Value 
+                        ?? string.Empty,
+            CustomerId = int.Parse(p.Element(legacyNs + "CustomerId")?.Value 
+                         ?? p.Descendants().FirstOrDefault(e => e.Name.LocalName == "CustomerId")?.Value 
+                         ?? "0"),
+            VehiclePlate = p.Element(legacyNs + "VehiclePlate")?.Value 
+                        ?? p.Descendants().FirstOrDefault(e => e.Name.LocalName == "VehiclePlate")?.Value 
+                        ?? string.Empty,
+            Premium = decimal.Parse(p.Element(legacyNs + "Premium")?.Value 
+                     ?? p.Descendants().FirstOrDefault(e => e.Name.LocalName == "Premium")?.Value 
+                     ?? "0"),
+            StartDate = DateTime.Parse(p.Element(legacyNs + "StartDate")?.Value 
+                        ?? p.Descendants().FirstOrDefault(e => e.Name.LocalName == "StartDate")?.Value 
+                        ?? DateTime.UtcNow.ToString()),
+            EndDate = DateTime.Parse(p.Element(legacyNs + "EndDate")?.Value 
+                      ?? p.Descendants().FirstOrDefault(e => e.Name.LocalName == "EndDate")?.Value 
+                      ?? DateTime.UtcNow.ToString()),
+            Status = p.Element(legacyNs + "Status")?.Value 
+                  ?? p.Descendants().FirstOrDefault(e => e.Name.LocalName == "Status")?.Value 
+                  ?? string.Empty
         }).ToList();
     }
 
