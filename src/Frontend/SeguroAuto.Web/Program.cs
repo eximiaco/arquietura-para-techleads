@@ -2,6 +2,10 @@ using SeguroAuto.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configurar IConfiguration para ler variáveis de ambiente
+// O Aspire injeta variáveis de ambiente que precisam ser lidas
+builder.Configuration.AddEnvironmentVariables();
+
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 

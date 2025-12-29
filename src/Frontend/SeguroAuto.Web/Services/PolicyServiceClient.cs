@@ -22,8 +22,11 @@ public class PolicyServiceClient : IPolicyServiceClient
         _configuration = configuration;
         _logger = logger;
         
+        // Obtém URL do gateway via service discovery do Aspire
         _gatewayUrl = _configuration["services__gateway__http__0"] 
+                   ?? Environment.GetEnvironmentVariable("services__gateway__http__0")
                    ?? _configuration["Gateway:Url"] 
+                   ?? Environment.GetEnvironmentVariable("Gateway__Url")
                    ?? "http://localhost:5000";
     }
 
@@ -105,7 +108,7 @@ public class PolicyServiceClient : IPolicyServiceClient
     {
         var httpClient = _httpClientFactory.CreateClient();
         var url = $"{_gatewayUrl.TrimEnd('/')}{endpoint}";
-        var content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml; charset=utf-8");
+        var content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
         content.Headers.Add("SOAPAction", $"{Namespace}/{soapAction}");
 
         var response = await httpClient.PostAsync(url, content);

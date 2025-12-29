@@ -73,6 +73,8 @@ var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService
 // DEVE ser definido ANTES do Gateway para poder ser referenciado nas rotas
 var frontend = builder.AddProject<Projects.SeguroAuto_Web>("frontend")
     .WithHttpEndpoint();
+    
+// Nota: A referência ao gateway será adicionada depois que o gateway for criado
 
 // Gateway Legacy usando AddYarp() nativo do Aspire
 // Expõe todos os serviços Legacy e o Frontend através de uma única porta
@@ -91,5 +93,9 @@ var gateway = builder.AddYarp("gateway")
         // IMPORTANTE: Esta rota deve ser a última para não interceptar as rotas SOAP
         yarp.AddRoute("/{**catch-all}", frontend);
     });
+
+// Adiciona referência do frontend ao gateway para service discovery
+// Isso garante que a variável services__gateway__http__0 seja injetada no frontend
+frontend.WithReference(gateway);
 
 builder.Build().Run();
