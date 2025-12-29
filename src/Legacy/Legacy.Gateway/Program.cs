@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -72,8 +73,30 @@ var pricingRulesServiceUrl = GetServiceUrl("pricing-rules-service");
 var routes = CreateRoutes();
 var clusters = CreateClusters(quoteServiceUrl, policyServiceUrl, claimsServiceUrl, pricingRulesServiceUrl);
 
+// Criar configuração em memória e converter para IConfiguration
+// Isso evita problemas com HttpSys delegation no macOS
+var configDict = new Dictionary<string, string?>
+{
+    ["ReverseProxy:Routes:quote-service:ClusterId"] = "quote-service-cluster",
+    ["ReverseProxy:Routes:quote-service:Match:Path"] = "/QuoteService.svc/{**catch-all}",
+    ["ReverseProxy:Routes:policy-service:ClusterId"] = "policy-service-cluster",
+    ["ReverseProxy:Routes:policy-service:Match:Path"] = "/PolicyService.svc/{**catch-all}",
+    ["ReverseProxy:Routes:claims-service:ClusterId"] = "claims-service-cluster",
+    ["ReverseProxy:Routes:claims-service:Match:Path"] = "/ClaimsService.svc/{**catch-all}",
+    ["ReverseProxy:Routes:pricing-rules-service:ClusterId"] = "pricing-rules-service-cluster",
+    ["ReverseProxy:Routes:pricing-rules-service:Match:Path"] = "/PricingRulesService.svc/{**catch-all}",
+    ["ReverseProxy:Clusters:quote-service-cluster:Destinations:destination1:Address"] = quoteServiceUrl,
+    ["ReverseProxy:Clusters:policy-service-cluster:Destinations:destination1:Address"] = policyServiceUrl,
+    ["ReverseProxy:Clusters:claims-service-cluster:Destinations:destination1:Address"] = claimsServiceUrl,
+    ["ReverseProxy:Clusters:pricing-rules-service-cluster:Destinations:destination1:Address"] = pricingRulesServiceUrl
+};
+
+var config = new ConfigurationBuilder()
+    .AddInMemoryCollection(configDict)
+    .Build();
+
 builder.Services.AddReverseProxy()
-    .LoadFromMemory(routes, clusters);
+    .LoadFromConfig(config.GetSection("ReverseProxy"));
 
 var app = builder.Build();
 
