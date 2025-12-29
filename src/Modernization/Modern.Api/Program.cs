@@ -17,7 +17,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Não usar HTTPS redirection em desenvolvimento local com Aspire (usa HTTP)
+// app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 

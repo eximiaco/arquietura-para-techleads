@@ -96,8 +96,26 @@ public class DatabaseSeeder
         }
 
         // Cria quotes
+        // IMPORTANTE: Garantir que o customer âncora (999) sempre tenha pelo menos uma quote
         var quotes = new List<Quote>();
-        for (int i = 1; i <= 10; i++)
+        
+        // Primeira quote sempre para o customer âncora (999)
+        quotes.Add(new Quote
+        {
+            Id = 1,
+            QuoteNumber = "QUOTE-ANCHOR-999",
+            CustomerId = 999,
+            VehiclePlate = "XYZ-9999",
+            VehicleModel = "Toyota Corolla",
+            VehicleYear = 2022,
+            Premium = 1200.00m,
+            Status = QuoteStatus.Pending,
+            ValidUntil = DateTime.UtcNow.AddDays(30),
+            CreatedAt = DateTime.UtcNow.AddDays(-5)
+        });
+        
+        // Cria mais quotes (incluindo possivelmente mais para o customer 999)
+        for (int i = 2; i <= 10; i++)
         {
             var customer = customers[random.Next(customers.Count)];
             quotes.Add(new Quote
@@ -116,8 +134,24 @@ public class DatabaseSeeder
         }
 
         // Cria claims
+        // IMPORTANTE: Garantir que a policy âncora (1234) sempre tenha pelo menos um claim
         var claims = new List<Claim>();
-        for (int i = 1; i <= 8; i++)
+        
+        // Primeiro claim sempre para a policy âncora (1234)
+        claims.Add(new Claim
+        {
+            Id = 1,
+            ClaimNumber = "CLAIM-ANCHOR-1234",
+            PolicyId = 1234,
+            Description = "Sinistro âncora: Colisão traseira",
+            Amount = 2500.00m,
+            Status = ClaimStatus.Pending,
+            IncidentDate = DateTime.UtcNow.AddDays(-30),
+            CreatedAt = DateTime.UtcNow.AddDays(-30)
+        });
+        
+        // Cria mais claims (incluindo possivelmente mais para a policy 1234)
+        for (int i = 2; i <= 8; i++)
         {
             var policy = policies[random.Next(policies.Count)];
             claims.Add(new Claim
