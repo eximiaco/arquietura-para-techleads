@@ -68,4 +68,13 @@ var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
     .WithEnvironment("FAULT_DELAY_MS", builder.Configuration["FAULT_DELAY_MS"] ?? "300");
 
+// Gateway Legacy - expõe todos os serviços Legacy através de uma única porta
+// Usa service discovery do Aspire para descobrir as URLs dos serviços dinamicamente
+var gateway = builder.AddProject<Projects.Legacy_Gateway>("gateway")
+    .WithHttpEndpoint() // Força o Aspire a gerenciar a porta dinamicamente
+    .WithReference(quoteService)
+    .WithReference(policyService)
+    .WithReference(claimsService)
+    .WithReference(pricingRulesService);
+
 builder.Build().Run();

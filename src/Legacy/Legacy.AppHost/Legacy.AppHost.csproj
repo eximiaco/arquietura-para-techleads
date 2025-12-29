@@ -18,6 +18,7 @@
     <ProjectReference Include="..\Legacy.PolicyService\Legacy.PolicyService.csproj" />
     <ProjectReference Include="..\Legacy.ClaimsService\Legacy.ClaimsService.csproj" />
     <ProjectReference Include="..\Legacy.PricingRulesService\Legacy.PricingRulesService.csproj" />
+    <ProjectReference Include="..\Legacy.Gateway\Legacy.Gateway.csproj" />
   </ItemGroup>
 
 </Project>
