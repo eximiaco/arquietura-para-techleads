@@ -9,6 +9,12 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_DASHBOARD_OT
     Environment.SetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL", "http://localhost:15001");
 }
 
+// Permitir transporte não seguro (HTTP) para desenvolvimento local
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT")))
+{
+    Environment.SetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT", "true");
+}
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 var dbPath = builder.Configuration["DB_PATH"] ?? "./data/modernization.db";
