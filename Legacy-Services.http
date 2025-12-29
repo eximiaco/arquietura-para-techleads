@@ -1,5 +1,5 @@
 ### Legacy Services HTTP Requests
-@gatewayUrl = http://localhost:60485
+@gatewayUrl = http://localhost:15100
 @baseUrl = http://localhost:5000
 @namespace = http://eximia.co/seguroauto/legacy
 @customerId = 999

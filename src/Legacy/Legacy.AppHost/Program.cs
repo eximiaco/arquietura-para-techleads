@@ -77,10 +77,16 @@ var frontend = builder.AddProject<Projects.SeguroAuto_Web>("frontend")
 // Nota: A referência ao gateway será adicionada depois que o gateway for criado
 
 // Gateway Legacy usando AddYarp() nativo do Aspire
-// Expõe todos os serviços Legacy e o Frontend através de uma única porta
+// Expõe todos os serviços Legacy e o Frontend através de uma única porta FIXA (15100)
 // Usa service discovery automático do Aspire - sem problemas de HttpSys!
-// Nota: AddYarp() já cria o endpoint HTTP automaticamente, não precisa chamar WithHttpEndpoint()
+// Porta fixa facilita testes e uso dos arquivos .http
+// IMPORTANTE: AddYarp() cria automaticamente um endpoint HTTP chamado "http"
+// Para definir porta fixa, precisamos usar WithEndpoint explicitamente
 var gateway = builder.AddYarp("gateway")
+    .WithEndpoint("http", endpoint =>
+    {
+        endpoint.Port = 15100;
+    })
     .WithConfiguration(yarp =>
     {
         // Rotas para serviços SOAP (devem vir antes da rota catch-all do frontend)
