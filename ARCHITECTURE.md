@@ -87,15 +87,24 @@ Cada operação usa classes marcadas com `[MessageContract]`:
 [MessageContract]
 public class QuoteRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public int CustomerId { get; set; }
     
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 2)]
     public string VehiclePlate { get; set; } = string.Empty;
+    
+    [MessageBodyMember(Order = 3)]
+    public string VehicleModel { get; set; } = string.Empty;
+    
+    [MessageBodyMember(Order = 4)]
+    public int VehicleYear { get; set; }
 }
 ```
 
-**Regra crítica**: Quando uma operação usa `[MessageContract]`, **todos** os parâmetros e o tipo de retorno devem ser `[MessageContract]`. Não é possível misturar com tipos primitivos.
+**Regras críticas:**
+- Quando uma operação usa `[MessageContract]`, **todos** os parâmetros e o tipo de retorno devem ser `[MessageContract]`. Não é possível misturar com tipos primitivos.
+- **IMPORTANTE**: Sempre especifique `Order` nos atributos `[MessageBodyMember]` para garantir a ordem correta de deserialização pelo CoreWCF.
+- A ordem dos elementos no XML SOAP deve corresponder à ordem especificada no `Order`.
 
 #### 3. Implementação do Serviço (`Service.cs`)
 
@@ -254,6 +263,28 @@ Cada serviço Legacy (`Legacy.*Service`) implementa:
 #### Serviços Legacy (CoreWCF)
 - Endpoints SOAP em `/ServiceName.svc`
 - Respostas em formato XML/SOAP
+- Formato SOAP: Usa prefixo `legacy:` com namespace definido no `soap:Envelope`
+- Exemplo de formato correto:
+  ```xml
+  <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" 
+                 xmlns:legacy="http://eximia.co/seguroauto/legacy">
+      <soap:Body>
+          <legacy:QuoteRequest>
+              <legacy:CustomerId>999</legacy:CustomerId>
+              <legacy:VehiclePlate>ABC-1234</legacy:VehiclePlate>
+              <legacy:VehicleModel>Honda Civic</legacy:VehicleModel>
+              <legacy:VehicleYear>2022</legacy:VehicleYear>
+          </legacy:QuoteRequest>
+      </soap:Body>
+  </soap:Envelope>
+  ```
+
+#### Frontend MVC (SeguroAuto.Web)
+- Aplicação ASP.NET Core MVC
+- Consome serviços Legacy através do Gateway YARP
+- Interface web para visualizar e criar cotações, apólices, sinistros e regras de precificação
+- Localizado em `src/Frontend/SeguroAuto.Web`
+- Acessível através do Gateway na porta 15100
 
 #### Modern.Api (REST)
 - Controllers ASP.NET Core
@@ -264,6 +295,7 @@ Cada serviço Legacy (`Legacy.*Service`) implementa:
 - Proxy reverso para roteamento
 - Service discovery automático
 - Feature flags (Lab.Gateway)
+- **Legacy Gateway**: Porta fixa 15100, expõe serviços SOAP e Frontend MVC
 
 ### Camada de Infraestrutura Compartilhada
 
@@ -387,12 +419,20 @@ O demo Legacy usa `AddYarp()` nativo do Aspire para criar um gateway:
 
 ```csharp
 var gateway = builder.AddYarp("gateway")
+    .WithEndpoint("http", endpoint =>
+    {
+        endpoint.Port = 15100; // Porta fixa para facilitar testes
+    })
     .WithConfiguration(yarp =>
     {
+        // Rotas para serviços SOAP
         yarp.AddRoute("/QuoteService.svc/{**catch-all}", quoteService);
         yarp.AddRoute("/PolicyService.svc/{**catch-all}", policyService);
         yarp.AddRoute("/ClaimsService.svc/{**catch-all}", claimsService);
         yarp.AddRoute("/PricingRulesService.svc/{**catch-all}", pricingRulesService);
+        
+        // Rota para o frontend MVC (catch-all)
+        yarp.AddRoute("/{**catch-all}", frontend);
     });
 ```
 
@@ -401,6 +441,12 @@ var gateway = builder.AddYarp("gateway")
 - Sem problemas de HttpSys (usa container YARP)
 - Configuração declarativa
 - Funciona em todas as plataformas
+- **Porta fixa (15100)**: Facilita testes e uso de arquivos .http
+
+**Porta fixa do Gateway:**
+- O gateway Legacy sempre responde na porta **15100**
+- Isso permite usar URLs fixas em arquivos `.http` e scripts de teste
+- Os demais serviços continuam com portas dinâmicas (gerenciadas pelo Aspire)
 
 ### Gateway Modernization (Strangler Fig)
 
@@ -770,11 +816,17 @@ Todos os serviços implementam tratamento consistente:
 
 **Componentes:**
 - 4 serviços CoreWCF (Quote, Policy, Claims, PricingRules)
-- Gateway YARP nativo do Aspire
+- Gateway YARP nativo do Aspire (porta fixa 15100)
+- Frontend MVC (ASP.NET Core) - consome serviços através do Gateway
 - Banco `legacy.db`
 - Fault injection habilitado (delay 300ms)
 
 **Uso**: Demonstrar problemas de legado, latência, contratos rígidos
+
+**Acesso:**
+- Gateway: http://localhost:15100 (porta fixa)
+- Frontend: http://localhost:15100 (através do gateway)
+- Serviços SOAP: http://localhost:15100/QuoteService.svc (através do gateway)
 
 ### Demo 2: Modernization
 
@@ -845,6 +897,83 @@ Todos os serviços implementam tratamento consistente:
 
 **Impacto**: Requer Aspire 9.3+ (ou versão com suporte a YARP)
 
+### 6. Porta Fixa do Gateway Legacy
+
+**Decisão**: Gateway Legacy sempre usa porta fixa 15100
+
+**Razão**: Facilita testes e uso de arquivos `.http` sem precisar atualizar URLs a cada execução
+
+**Impacto**: 
+- URLs fixas em arquivos de teste
+- Facilita desenvolvimento e debugging
+- Demais serviços continuam com portas dinâmicas
+
+**Configuração:**
+```csharp
+var gateway = builder.AddYarp("gateway")
+    .WithEndpoint("http", endpoint =>
+    {
+        endpoint.Port = 15100; // Porta fixa
+    })
+    .WithConfiguration(yarp => { ... });
+```
+
+### 7. Formato SOAP com Prefixo legacy:
+
+**Decisão**: Usar prefixo `legacy:` em todos os elementos SOAP com namespace definido no `soap:Envelope`
+
+**Razão**: CoreWCF requer namespace explícito para deserialização correta dos MessageContracts
+
+**Impacto**: 
+- XML SOAP mais verboso, mas compatível com CoreWCF
+- Parsing das respostas deve suportar namespace com/sem prefixo (fallback)
+
+**Formato correto:**
+```xml
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" 
+               xmlns:legacy="http://eximia.co/seguroauto/legacy">
+    <soap:Body>
+        <legacy:QuoteRequest>
+            <legacy:CustomerId>999</legacy:CustomerId>
+            <legacy:VehiclePlate>ABC-1234</legacy:VehiclePlate>
+        </legacy:QuoteRequest>
+    </soap:Body>
+</soap:Envelope>
+```
+
+### 8. Order nos MessageBodyMember
+
+**Decisão**: Sempre especificar `Order` nos atributos `[MessageBodyMember]`
+
+**Razão**: Garante ordem correta de deserialização pelo CoreWCF, especialmente importante quando há múltiplos campos
+
+**Impacto**: Mais verbosidade nos contratos, mas maior confiabilidade na deserialização
+
+**Exemplo:**
+```csharp
+[MessageContract]
+public class QuoteRequest
+{
+    [MessageBodyMember(Order = 1)]
+    public int CustomerId { get; set; }
+    
+    [MessageBodyMember(Order = 2)]
+    public string VehiclePlate { get; set; } = string.Empty;
+}
+```
+
+### 9. Frontend MVC Consumindo SOAP
+
+**Decisão**: Criar frontend MVC que consome serviços SOAP através do Gateway
+
+**Razão**: Demonstra integração de aplicações modernas com serviços legados SOAP
+
+**Impacto**: 
+- Frontend usa `HttpClientFactory` para fazer requisições SOAP
+- Parsing manual de XML SOAP nas respostas
+- Suporte a namespace com/sem prefixo para robustez
+- Service discovery do Aspire para obter URL do gateway
+
 ---
 
 ## Considerações de Performance
@@ -877,12 +1006,22 @@ CoreWCF é mais leve que WCF clássico:
 ### Adicionar Novo Serviço Legacy
 
 1. Criar interface `IService.cs` com `[ServiceContract]`
-2. Criar message contracts para parâmetros/retornos
+2. Criar message contracts para parâmetros/retornos:
+   - **IMPORTANTE**: Sempre especificar `Order` nos `[MessageBodyMember]`
+   - Exemplo: `[MessageBodyMember(Order = 1)]`
 3. Implementar `Service.cs` herdando da interface
 4. Registrar no `Program.cs`:
    - `AddTransient<Service>()`
    - `AddServiceEndpoint<Service, IService>()`
 5. Adicionar ao AppHost com `AddProject<Service>()`
+6. Adicionar rota no Gateway YARP:
+   ```csharp
+   yarp.AddRoute("/ServiceName.svc/{**catch-all}", service);
+   ```
+7. Se criar cliente SOAP no frontend:
+   - Usar prefixo `legacy:` em todos os elementos XML
+   - Definir namespace no `soap:Envelope`
+   - Implementar parsing com fallback para namespace com/sem prefixo
 
 ### Adicionar Novo Endpoint REST
 
@@ -896,6 +1035,119 @@ CoreWCF é mais leve que WCF clássico:
 1. Adicionar novo `FaultErrorKind` no enum
 2. Implementar lógica em `ReturnErrorAsync()`
 3. Configurar via variável de ambiente `FAULT_ERROR_KIND`
+
+---
+
+## Clientes SOAP no Frontend
+
+### Estrutura dos Clientes SOAP
+
+O frontend MVC (`SeguroAuto.Web`) contém clientes SOAP para consumir os serviços Legacy:
+
+- `QuoteServiceClient`: Consome QuoteService
+- `PolicyServiceClient`: Consome PolicyService
+- `ClaimsServiceClient`: Consome ClaimsService
+- `PricingRulesServiceClient`: Consome PricingRulesService
+
+### Formato SOAP Correto
+
+Todos os clientes SOAP seguem o formato correto:
+
+```csharp
+private string BuildSoapEnvelope(string body)
+{
+    // Namespace legacy definido no Envelope
+    return $@"<?xml version=""1.0"" encoding=""utf-8""?>
+<soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"" 
+               xmlns:legacy=""{Namespace}"">
+    <soap:Body>
+        {body}
+    </soap:Body>
+</soap:Envelope>";
+}
+
+// Body com prefixo legacy: em todos os elementos
+var soapBody = $@"<legacy:QuoteRequest>
+    <legacy:CustomerId>{customerId}</legacy:CustomerId>
+    <legacy:VehiclePlate>{EscapeXml(vehiclePlate)}</legacy:VehiclePlate>
+    <legacy:VehicleModel>{EscapeXml(vehicleModel)}</legacy:VehicleModel>
+    <legacy:VehicleYear>{vehicleYear}</legacy:VehicleYear>
+</legacy:QuoteRequest>";
+```
+
+**Características importantes:**
+- Namespace `xmlns:legacy` definido no `soap:Envelope`, não no body
+- Prefixo `legacy:` usado em todos os elementos do contrato
+- Ordem dos elementos corresponde ao `Order` especificado nos `[MessageBodyMember]`
+
+### Parsing Robusto de Respostas
+
+O parsing das respostas SOAP suporta namespace com/sem prefixo (fallback):
+
+```csharp
+// Tentar com namespace primeiro, depois sem namespace (fallback)
+var quoteResponse = body?.Descendants(legacyNs + "QuoteResponse").FirstOrDefault()
+                ?? body?.Descendants().FirstOrDefault(e => e.Name.LocalName == "QuoteResponse");
+
+// Para elementos filhos também
+var quoteNumber = quoteResponse.Element(legacyNs + "QuoteNumber")?.Value 
+               ?? quoteResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "QuoteNumber")?.Value 
+               ?? string.Empty;
+```
+
+**Vantagens:**
+- Funciona mesmo se o CoreWCF retornar XML sem prefixo
+- Mais robusto e tolerante a variações no formato
+- Facilita debugging quando há problemas de namespace
+
+### Service Discovery do Gateway
+
+O frontend obtém a URL do gateway através do service discovery do Aspire:
+
+```csharp
+_gatewayUrl = _configuration["services__gateway__http__0"] 
+           ?? Environment.GetEnvironmentVariable("services__gateway__http__0")
+           ?? "http://localhost:15100"; // Fallback para porta fixa
+```
+
+**Formato da variável:**
+- `services__gateway__http__0`: URL do gateway injetada pelo Aspire
+- Como o gateway usa porta fixa (15100), o fallback sempre funciona
+
+### Registro no DI Container
+
+Os clientes SOAP são registrados como `Scoped` no DI container:
+
+```csharp
+builder.Services.AddHttpClient(); // Registra IHttpClientFactory
+builder.Services.AddScoped<IQuoteServiceClient, QuoteServiceClient>();
+builder.Services.AddScoped<IPolicyServiceClient, PolicyServiceClient>();
+// ...
+```
+
+**Razão:**
+- `Scoped`: Uma instância por requisição HTTP
+- Usa `IHttpClientFactory` para gerenciar `HttpClient` instances
+- Permite injeção de dependências (IConfiguration, ILogger)
+
+### Tratamento de Erros
+
+Todos os clientes implementam tratamento robusto de erros:
+
+```csharp
+if (!response.IsSuccessStatusCode)
+{
+    var errorContent = await response.Content.ReadAsStringAsync();
+    _logger.LogError("SOAP request failed with status {StatusCode}. Response: {Response}", 
+        response.StatusCode, errorContent);
+    response.EnsureSuccessStatusCode();
+}
+```
+
+**Características:**
+- Logging detalhado de erros HTTP
+- Extração de mensagens de erro do SOAP Fault quando possível
+- Exceções informativas para facilitar debugging
 
 ---
 

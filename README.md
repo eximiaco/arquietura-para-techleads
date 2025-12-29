@@ -271,6 +271,8 @@ dotnet run
 - PolicyService (CoreWCF) - porta configurada pelo Aspire
 - ClaimsService (CoreWCF) - porta configurada pelo Aspire
 - PricingRulesService (CoreWCF) - porta configurada pelo Aspire
+- Gateway YARP - **porta fixa 15100** (facilita testes e arquivos .http)
+- Frontend MVC (ASP.NET Core) - porta configurada pelo Aspire
 - Dashboard do .NET Aspire com observabilidade (porta 15000)
 
 **Configuração padrão:**
@@ -281,12 +283,24 @@ dotnet run
 
 **Acessar serviços:**
 - Dashboard Aspire: http://localhost:15000 (será exibido no terminal após iniciar)
-- Endpoints SOAP: disponíveis através do dashboard ou via variáveis de ambiente injetadas pelo Aspire
+- **Gateway: http://localhost:15100** (porta fixa - use nos arquivos .http)
+- Frontend MVC: http://localhost:15100 (através do gateway)
+- Endpoints SOAP: http://localhost:15100/QuoteService.svc (através do gateway)
 
-**Testar com cliente:**
+**Testar serviços:**
 ```bash
-cd src/Legacy/Legacy.TestClient
-dotnet run <URL_DO_QUOTE_SERVICE>
+# Usar arquivo .http (recomendado)
+# O arquivo Legacy-Services.http já está configurado com a porta 15100
+# Execute as requisições diretamente do VS Code ou Rider
+
+# Ou usar curl diretamente
+curl -X POST http://localhost:15100/QuoteService.svc \
+  -H "Content-Type: text/xml; charset=utf-8" \
+  -H "SOAPAction: http://eximia.co/seguroauto/legacy/IQuoteService/GetQuote" \
+  -d @soap-request.xml
+
+# Ou acessar o Frontend MVC
+# Abra http://localhost:15100 no navegador
 ```
 
 ---
@@ -435,10 +449,13 @@ dotnet workload list
 
 1. **Isolamento de bancos de dados**: Cada demo usa seu próprio arquivo SQLite isolado (`legacy.db`, `modernization.db`, `lab.db`)
 
-2. **Portas dinâmicas**: O .NET Aspire atribui portas dinamicamente para os serviços. Consulte o dashboard para ver as portas atribuídas. As portas do dashboard são fixas por demo:
-   - Legacy: http://localhost:15000
-   - Modernization: http://localhost:15010
-   - Lab: http://localhost:15020
+2. **Portas dinâmicas e fixas**: 
+   - **Gateway Legacy**: Porta fixa **15100** (facilita testes e arquivos .http)
+   - **Demais serviços**: Portas dinâmicas atribuídas pelo Aspire
+   - **Dashboard**: Portas fixas por demo:
+     - Legacy: http://localhost:15000
+     - Modernization: http://localhost:15010
+     - Lab: http://localhost:15020
 
 3. **Seeding automático**: Cada serviço executa seeding do banco na inicialização (idempotente - só cria se o banco não existir).
 
