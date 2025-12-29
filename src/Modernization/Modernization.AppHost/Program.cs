@@ -2,14 +2,15 @@
 // ANTES de criar o builder, para que o Aspire possa detectá-las
 // Usar EnvironmentVariableTarget.Process garante que sejam apenas para este processo
 // e não serão herdadas pelos serviços filhos iniciados pelo Aspire
+// Portas do dashboard para o demo Modernization (15010-15011)
 if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
 {
-    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:15000", EnvironmentVariableTarget.Process);
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:15010", EnvironmentVariableTarget.Process);
 }
 
 if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL")))
 {
-    Environment.SetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL", "http://localhost:15001", EnvironmentVariableTarget.Process);
+    Environment.SetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL", "http://localhost:15011", EnvironmentVariableTarget.Process);
 }
 
 if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT")))

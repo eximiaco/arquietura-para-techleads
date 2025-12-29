@@ -2,6 +2,7 @@
 // ANTES de criar o builder, para que o Aspire possa detectá-las
 // Usar EnvironmentVariableTarget.Process garante que sejam apenas para este processo
 // e não serão herdadas pelos serviços filhos iniciados pelo Aspire
+// Portas do dashboard para o demo Legacy (15000-15001)
 if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")))
 {
     Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:15000", EnvironmentVariableTarget.Process);

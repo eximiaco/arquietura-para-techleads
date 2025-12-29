@@ -271,7 +271,7 @@ dotnet run
 - PolicyService (CoreWCF) - porta configurada pelo Aspire
 - ClaimsService (CoreWCF) - porta configurada pelo Aspire
 - PricingRulesService (CoreWCF) - porta configurada pelo Aspire
-- Dashboard do .NET Aspire com observabilidade
+- Dashboard do .NET Aspire com observabilidade (porta 15000)
 
 **Configuração padrão:**
 - Banco de dados: `./data/legacy.db`
@@ -280,7 +280,7 @@ dotnet run
 - Fault mode: `delay` (300ms)
 
 **Acessar serviços:**
-- Dashboard Aspire: será exibido no terminal após iniciar
+- Dashboard Aspire: http://localhost:15000 (será exibido no terminal após iniciar)
 - Endpoints SOAP: disponíveis através do dashboard ou via variáveis de ambiente injetadas pelo Aspire
 
 **Testar com cliente:**
@@ -316,7 +316,7 @@ dotnet run
 - Legacy.QuoteService (CoreWCF) - porta configurada pelo Aspire
 - Legacy.PolicyService (CoreWCF) - porta configurada pelo Aspire
 - Modern.Gateway (YARP) - porta configurada pelo Aspire
-- Dashboard do .NET Aspire com observabilidade
+- Dashboard do .NET Aspire com observabilidade (porta 15010)
 
 **Configuração padrão:**
 - Banco de dados: `./data/modernization.db`
@@ -325,7 +325,7 @@ dotnet run
 - Fault mode: `off` (sem falhas)
 
 **Acessar serviços:**
-- Dashboard Aspire: será exibido no terminal após iniciar
+- Dashboard Aspire: http://localhost:15010 (será exibido no terminal após iniciar)
 - Gateway: roteia `/api/*` para Modern.Api e `/legacy/*` para serviços Legacy
 - REST API: endpoints em `/api/quotes`, `/api/policies`
 - SOAP Services: disponíveis através do gateway ou diretamente
@@ -366,7 +366,7 @@ dotnet run
 - Legacy.QuoteService (CoreWCF) - porta configurada pelo Aspire
 - Legacy.PolicyService (CoreWCF) - porta configurada pelo Aspire
 - Lab.Gateway (YARP com feature flags) - porta configurada pelo Aspire
-- Dashboard do .NET Aspire com observabilidade
+- Dashboard do .NET Aspire com observabilidade (porta 15020)
 
 **Configuração padrão:**
 - Banco de dados: `./data/lab.db`
@@ -376,7 +376,7 @@ dotnet run
 - Feature flag: `USE_MODERN_API=false` (usa Legacy por padrão)
 
 **Acessar serviços:**
-- Dashboard Aspire: será exibido no terminal após iniciar
+- Dashboard Aspire: http://localhost:15020 (será exibido no terminal após iniciar)
 - Gateway: alterna entre Legacy e Modern via feature flag `USE_MODERN_API`
 - REST API: disponível diretamente ou através do gateway
 - SOAP Services: disponíveis diretamente ou através do gateway
@@ -435,7 +435,10 @@ dotnet workload list
 
 1. **Isolamento de bancos de dados**: Cada demo usa seu próprio arquivo SQLite isolado (`legacy.db`, `modernization.db`, `lab.db`)
 
-2. **Portas dinâmicas**: O .NET Aspire atribui portas dinamicamente. Consulte o dashboard para ver as portas atribuídas.
+2. **Portas dinâmicas**: O .NET Aspire atribui portas dinamicamente para os serviços. Consulte o dashboard para ver as portas atribuídas. As portas do dashboard são fixas por demo:
+   - Legacy: http://localhost:15000
+   - Modernization: http://localhost:15010
+   - Lab: http://localhost:15020
 
 3. **Seeding automático**: Cada serviço executa seeding do banco na inicialização (idempotente - só cria se o banco não existir).
 
@@ -444,7 +447,7 @@ dotnet workload list
    - Policy ID: `1234`
    - Policy Number: `"AUTO-1234"`
 
-5. **Executar apenas um demo por vez**: Embora seja possível executar múltiplos demos simultaneamente, recomenda-se executar apenas um por vez para evitar conflitos de portas e facilitar a observabilidade.
+5. **Executar múltiplos demos simultaneamente**: Agora é possível executar múltiplos demos simultaneamente, pois cada um usa portas diferentes para o dashboard. Apenas certifique-se de que não há outros processos usando as portas 15000, 15010 ou 15020.
 
 ---
 

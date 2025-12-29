@@ -3,22 +3,43 @@ using Yarp.ReverseProxy.Configuration;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configurar YARP dinamicamente usando variáveis de ambiente do Aspire
-// O Aspire injeta variáveis no formato: {service-name}__{endpoint-name}__{property}
-// Por exemplo: quote-service__http__url
+// O Aspire injeta variáveis no formato: services__{service-name}__{endpoint-name}__{index}
+// Por exemplo: services__quote-service__http__0
 // Função auxiliar para obter URL do serviço com fallback e logging
 string GetServiceUrl(string serviceName, string endpointName = "http")
 {
-    var envVarName = $"{serviceName}__{endpointName}__url";
+    // Tentar o formato correto do Aspire: services__{service-name}__{endpoint-name}__0
+    var envVarName = $"services__{serviceName}__{endpointName}__0";
     var url = Environment.GetEnvironmentVariable(envVarName);
     
     if (string.IsNullOrEmpty(url))
     {
-        // Log todas as variáveis de ambiente relacionadas para debug
-        var relatedVars = Environment.GetEnvironmentVariables()
+        // Tentar formatos alternativos ou buscar todas as variáveis relacionadas
+        var allEnvVars = Environment.GetEnvironmentVariables()
             .Cast<System.Collections.DictionaryEntry>()
-            .Where(e => e.Key?.ToString()?.Contains(serviceName, StringComparison.OrdinalIgnoreCase) ?? false)
+            .ToDictionary(e => e.Key?.ToString() ?? "", e => e.Value?.ToString() ?? "");
+        
+        // Procurar por qualquer variável que contenha o nome do serviço
+        var relatedVars = allEnvVars
+            .Where(e => e.Key.Contains(serviceName, StringComparison.OrdinalIgnoreCase))
             .Select(e => $"{e.Key}={e.Value}")
             .ToList();
+        
+        // Tentar encontrar a URL em qualquer formato relacionado
+        var possibleUrl = relatedVars
+            .FirstOrDefault(v => v.Contains("http://", StringComparison.OrdinalIgnoreCase) || 
+                                 v.Contains("https://", StringComparison.OrdinalIgnoreCase));
+        
+        if (!string.IsNullOrEmpty(possibleUrl))
+        {
+            // Extrair a URL do formato "key=value"
+            var urlValue = possibleUrl.Split('=', 2).LastOrDefault();
+            if (!string.IsNullOrEmpty(urlValue))
+            {
+                Console.WriteLine($"[Gateway] Discovered {serviceName} at: {urlValue} (from {possibleUrl.Split('=').First()})");
+                return urlValue;
+            }
+        }
         
         var errorMsg = $"Environment variable '{envVarName}' not found for service '{serviceName}'. " +
                       $"Make sure the service is referenced in the AppHost using .WithReference(). " +
