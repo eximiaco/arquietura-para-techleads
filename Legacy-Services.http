@@ -1,0 +1,204 @@
+### Variáveis de ambiente
+### Configure estas variáveis no VS Code ou ajuste os valores diretamente
+### IMPORTANTE: Quando executando via Aspire, cada serviço recebe uma porta dinâmica.
+### Ajuste @baseUrl para a porta correta de cada serviço (verifique no Aspire Dashboard)
+@baseUrl = http://localhost:5000
+@namespace = http://eximia.co/seguroauto/legacy
+@customerId = 999
+@policyNumber = AUTO-1234
+@claimNumber = CLAIM-ANCHOR-1234
+@quoteNumber = QUOTE-ANCHOR-999
+
+### ============================================
+### QuoteService
+### ============================================
+
+### GetQuote - Criar uma nova cotação
+POST {{baseUrl}}/QuoteService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IQuoteService/GetQuote"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:QuoteRequest>
+      <legacy:CustomerId>{{customerId}}</legacy:CustomerId>
+      <legacy:VehiclePlate>XYZ-1234</legacy:VehiclePlate>
+      <legacy:VehicleModel>Honda Civic</legacy:VehicleModel>
+      <legacy:VehicleYear>2022</legacy:VehicleYear>
+    </legacy:QuoteRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### GetQuotesByCustomer - Buscar cotações por cliente
+POST {{baseUrl}}/QuoteService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IQuoteService/GetQuotesByCustomer"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:GetQuotesByCustomerRequest>
+      <legacy:CustomerId>{{customerId}}</legacy:CustomerId>
+    </legacy:GetQuotesByCustomerRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### ApproveQuote - Aprovar uma cotação
+POST {{baseUrl}}/QuoteService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IQuoteService/ApproveQuote"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:ApproveQuoteRequest>
+      <legacy:QuoteNumber>{{quoteNumber}}</legacy:QuoteNumber>
+    </legacy:ApproveQuoteRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### ============================================
+### PolicyService
+### ============================================
+
+### GetPolicy - Buscar apólice por número
+POST {{baseUrl}}/PolicyService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IPolicyService/GetPolicy"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:GetPolicyRequest>
+      <legacy:PolicyNumber>{{policyNumber}}</legacy:PolicyNumber>
+    </legacy:GetPolicyRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### GetPoliciesByCustomer - Buscar apólices por cliente
+POST {{baseUrl}}/PolicyService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IPolicyService/GetPoliciesByCustomer"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:GetPoliciesByCustomerRequest>
+      <legacy:CustomerId>{{customerId}}</legacy:CustomerId>
+    </legacy:GetPoliciesByCustomerRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### CreatePolicy - Criar nova apólice
+POST {{baseUrl}}/PolicyService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IPolicyService/CreatePolicy"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:CreatePolicyRequest>
+      <legacy:CustomerId>{{customerId}}</legacy:CustomerId>
+      <legacy:VehiclePlate>ABC-5678</legacy:VehiclePlate>
+      <legacy:VehicleModel>Toyota Corolla</legacy:VehicleModel>
+      <legacy:VehicleYear>2023</legacy:VehicleYear>
+      <legacy:Premium>1500.00</legacy:Premium>
+    </legacy:CreatePolicyRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### ============================================
+### ClaimsService
+### ============================================
+
+### GetClaim - Buscar sinistro por número
+POST {{baseUrl}}/ClaimsService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IClaimsService/GetClaim"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:GetClaimRequest>
+      <legacy:ClaimNumber>{{claimNumber}}</legacy:ClaimNumber>
+    </legacy:GetClaimRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### GetClaimsByPolicy - Buscar sinistros por apólice
+POST {{baseUrl}}/ClaimsService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IClaimsService/GetClaimsByPolicy"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:GetClaimsByPolicyRequest>
+      <legacy:PolicyNumber>{{policyNumber}}</legacy:PolicyNumber>
+    </legacy:GetClaimsByPolicyRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### CreateClaim - Criar novo sinistro
+POST {{baseUrl}}/ClaimsService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IClaimsService/CreateClaim"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:CreateClaimRequest>
+      <legacy:PolicyNumber>{{policyNumber}}</legacy:PolicyNumber>
+      <legacy:Description>Colisão traseira - Teste via SOAP</legacy:Description>
+      <legacy:Amount>2500.00</legacy:Amount>
+      <legacy:IncidentDate>2024-12-29T00:00:00</legacy:IncidentDate>
+    </legacy:CreateClaimRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### ============================================
+### PricingRulesService
+### ============================================
+
+### GetAllRules - Buscar todas as regras de precificação
+POST {{baseUrl}}/PricingRulesService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IPricingRulesService/GetAllRules"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:GetAllRulesRequest />
+  </soap:Body>
+</soap:Envelope>
+
+### GetRule - Buscar regra específica por ID
+POST {{baseUrl}}/PricingRulesService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IPricingRulesService/GetRule"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:GetRuleRequest>
+      <legacy:RuleId>1</legacy:RuleId>
+    </legacy:GetRuleRequest>
+  </soap:Body>
+</soap:Envelope>
+
+### UpdateRule - Atualizar status de uma regra
+POST {{baseUrl}}/PricingRulesService.svc
+Content-Type: text/xml; charset=utf-8
+SOAPAction: "{{namespace}}/IPricingRulesService/UpdateRule"
+
+<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:legacy="{{namespace}}">
+  <soap:Body>
+    <legacy:UpdateRuleRequest>
+      <legacy:Id>1</legacy:Id>
+      <legacy:IsActive>true</legacy:IsActive>
+    </legacy:UpdateRuleRequest>
+  </soap:Body>
+</soap:Envelope>
+
