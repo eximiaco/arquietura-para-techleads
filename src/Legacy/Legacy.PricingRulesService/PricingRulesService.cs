@@ -1,3 +1,4 @@
+using System.ServiceModel;
 using Microsoft.EntityFrameworkCore;
 using SeguroAuto.Data;
 
