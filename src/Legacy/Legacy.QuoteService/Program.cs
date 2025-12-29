@@ -43,8 +43,6 @@ app.UseRouting();
 app.UseFaultInjection();
 
 // 3. CoreWCF - configura os endpoints SOAP
-// O CoreWCF usa automaticamente o ServiceProvider se AddServiceModelServices() foi chamado
-// e o serviço estiver registrado no DI (já registrado acima como Transient)
 app.UseServiceModel(serviceBuilder =>
 {
     serviceBuilder
