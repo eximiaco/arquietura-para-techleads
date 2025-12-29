@@ -6,13 +6,32 @@ namespace Legacy.PricingRulesService;
 public interface IPricingRulesService
 {
     [OperationContract]
-    PricingRuleResponse[] GetAllRules();
+    GetAllRulesResponse GetAllRules(GetAllRulesRequest request);
 
     [OperationContract]
-    PricingRuleResponse GetRule(int ruleId);
+    PricingRuleResponse GetRule(GetRuleRequest request);
 
     [OperationContract]
-    bool UpdateRule(UpdateRuleRequest request);
+    UpdateRuleResponse UpdateRule(UpdateRuleRequest request);
+}
+
+[MessageContract]
+public class GetAllRulesRequest
+{
+}
+
+[MessageContract]
+public class GetAllRulesResponse
+{
+    [MessageBodyMember]
+    public PricingRuleResponse[] Rules { get; set; } = Array.Empty<PricingRuleResponse>();
+}
+
+[MessageContract]
+public class GetRuleRequest
+{
+    [MessageBodyMember]
+    public int RuleId { get; set; }
 }
 
 [MessageContract]
@@ -42,5 +61,12 @@ public class UpdateRuleRequest
 
     [MessageBodyMember]
     public bool IsActive { get; set; }
+}
+
+[MessageContract]
+public class UpdateRuleResponse
+{
+    [MessageBodyMember]
+    public bool Success { get; set; }
 }
 

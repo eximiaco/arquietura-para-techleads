@@ -8,6 +8,9 @@ public interface IQuoteService
 {
     [OperationContract]
     QuoteResponse GetQuote(QuoteRequest request);
+
+    [OperationContract]
+    GetQuotesByCustomerResponse GetQuotesByCustomer(GetQuotesByCustomerRequest request);
 }
 
 [MessageContract]
@@ -24,6 +27,20 @@ public class QuoteRequest
 
     [MessageBodyMember]
     public int VehicleYear { get; set; }
+}
+
+[MessageContract]
+public class GetQuotesByCustomerRequest
+{
+    [MessageBodyMember]
+    public int CustomerId { get; set; }
+}
+
+[MessageContract]
+public class GetQuotesByCustomerResponse
+{
+    [MessageBodyMember]
+    public QuoteResponse[] Quotes { get; set; } = Array.Empty<QuoteResponse>();
 }
 
 [MessageContract]
@@ -71,6 +88,11 @@ class Program
 
             Console.WriteLine($"Calling GetQuote for CustomerId: {request.CustomerId}");
             var response = client.GetQuote(request);
+            
+            // Exemplo de chamada com GetQuotesByCustomer
+            var quotesRequest = new GetQuotesByCustomerRequest { CustomerId = 999 };
+            var quotesResponse = client.GetQuotesByCustomer(quotesRequest);
+            Console.WriteLine($"Found {quotesResponse.Quotes.Length} quotes for customer");
 
             Console.WriteLine($"Quote Number: {response.QuoteNumber}");
             Console.WriteLine($"Premium: {response.Premium:C}");

@@ -16,13 +16,13 @@ public class PolicyService : IPolicyService
         _logger = logger;
     }
 
-    public PolicyResponse GetPolicy(string policyNumber)
+    public PolicyResponse GetPolicy(GetPolicyRequest request)
     {
-        _logger.LogInformation("GetPolicy called for PolicyNumber: {PolicyNumber}", policyNumber);
+        _logger.LogInformation("GetPolicy called for PolicyNumber: {PolicyNumber}", request.PolicyNumber);
 
         var policy = _context.Policies
             .Include(p => p.Customer)
-            .FirstOrDefault(p => p.PolicyNumber == policyNumber);
+            .FirstOrDefault(p => p.PolicyNumber == request.PolicyNumber);
 
         if (policy == null)
         {
@@ -41,25 +41,28 @@ public class PolicyService : IPolicyService
         };
     }
 
-    public PolicyResponse[] GetPoliciesByCustomer(int customerId)
+    public GetPoliciesByCustomerResponse GetPoliciesByCustomer(GetPoliciesByCustomerRequest request)
     {
-        _logger.LogInformation("GetPoliciesByCustomer called for CustomerId: {CustomerId}", customerId);
+        _logger.LogInformation("GetPoliciesByCustomer called for CustomerId: {CustomerId}", request.CustomerId);
 
         var policies = _context.Policies
-            .Where(p => p.CustomerId == customerId)
+            .Where(p => p.CustomerId == request.CustomerId)
             .OrderByDescending(p => p.CreatedAt)
             .ToList();
 
-        return policies.Select(p => new PolicyResponse
+        return new GetPoliciesByCustomerResponse
         {
-            PolicyNumber = p.PolicyNumber,
-            CustomerId = p.CustomerId,
-            VehiclePlate = p.VehiclePlate,
-            Premium = p.Premium,
-            StartDate = p.StartDate,
-            EndDate = p.EndDate,
-            Status = p.Status.ToString()
-        }).ToArray();
+            Policies = policies.Select(p => new PolicyResponse
+            {
+                PolicyNumber = p.PolicyNumber,
+                CustomerId = p.CustomerId,
+                VehiclePlate = p.VehiclePlate,
+                Premium = p.Premium,
+                StartDate = p.StartDate,
+                EndDate = p.EndDate,
+                Status = p.Status.ToString()
+            }).ToArray()
+        };
     }
 
     public PolicyResponse CreatePolicy(CreatePolicyRequest request)

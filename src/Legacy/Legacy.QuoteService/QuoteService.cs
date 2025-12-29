@@ -59,40 +59,43 @@ public class QuoteService : IQuoteService
         };
     }
 
-    public QuoteResponse[] GetQuotesByCustomer(int customerId)
+    public GetQuotesByCustomerResponse GetQuotesByCustomer(GetQuotesByCustomerRequest request)
     {
-        _logger.LogInformation("GetQuotesByCustomer called for CustomerId: {CustomerId}", customerId);
+        _logger.LogInformation("GetQuotesByCustomer called for CustomerId: {CustomerId}", request.CustomerId);
 
         var quotes = _context.Quotes
-            .Where(q => q.CustomerId == customerId)
+            .Where(q => q.CustomerId == request.CustomerId)
             .OrderByDescending(q => q.CreatedAt)
             .Take(10)
             .ToList();
 
-        return quotes.Select(q => new QuoteResponse
+        return new GetQuotesByCustomerResponse
         {
-            QuoteNumber = q.QuoteNumber,
-            CustomerId = q.CustomerId,
-            Premium = q.Premium,
-            ValidUntil = q.ValidUntil,
-            Status = q.Status.ToString()
-        }).ToArray();
+            Quotes = quotes.Select(q => new QuoteResponse
+            {
+                QuoteNumber = q.QuoteNumber,
+                CustomerId = q.CustomerId,
+                Premium = q.Premium,
+                ValidUntil = q.ValidUntil,
+                Status = q.Status.ToString()
+            }).ToArray()
+        };
     }
 
-    public bool ApproveQuote(string quoteNumber)
+    public ApproveQuoteResponse ApproveQuote(ApproveQuoteRequest request)
     {
-        _logger.LogInformation("ApproveQuote called for QuoteNumber: {QuoteNumber}", quoteNumber);
+        _logger.LogInformation("ApproveQuote called for QuoteNumber: {QuoteNumber}", request.QuoteNumber);
 
-        var quote = _context.Quotes.FirstOrDefault(q => q.QuoteNumber == quoteNumber);
+        var quote = _context.Quotes.FirstOrDefault(q => q.QuoteNumber == request.QuoteNumber);
         if (quote == null)
         {
-            return false;
+            return new ApproveQuoteResponse { Success = false };
         }
 
         quote.Status = QuoteStatus.Approved;
         _context.SaveChanges();
 
-        return true;
+        return new ApproveQuoteResponse { Success = true };
     }
 
     private decimal CalculateBasePremium(int vehicleYear, string vehicleModel)

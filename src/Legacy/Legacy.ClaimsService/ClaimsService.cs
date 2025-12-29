@@ -16,13 +16,13 @@ public class ClaimsService : IClaimsService
         _logger = logger;
     }
 
-    public ClaimResponse GetClaim(string claimNumber)
+    public ClaimResponse GetClaim(GetClaimRequest request)
     {
-        _logger.LogInformation("GetClaim called for ClaimNumber: {ClaimNumber}", claimNumber);
+        _logger.LogInformation("GetClaim called for ClaimNumber: {ClaimNumber}", request.ClaimNumber);
 
         var claim = _context.Claims
             .Include(c => c.Policy)
-            .FirstOrDefault(c => c.ClaimNumber == claimNumber);
+            .FirstOrDefault(c => c.ClaimNumber == request.ClaimNumber);
 
         if (claim == null)
         {
@@ -40,14 +40,14 @@ public class ClaimsService : IClaimsService
         };
     }
 
-    public ClaimResponse[] GetClaimsByPolicy(string policyNumber)
+    public GetClaimsByPolicyResponse GetClaimsByPolicy(GetClaimsByPolicyRequest request)
     {
-        _logger.LogInformation("GetClaimsByPolicy called for PolicyNumber: {PolicyNumber}", policyNumber);
+        _logger.LogInformation("GetClaimsByPolicy called for PolicyNumber: {PolicyNumber}", request.PolicyNumber);
 
-        var policy = _context.Policies.FirstOrDefault(p => p.PolicyNumber == policyNumber);
+        var policy = _context.Policies.FirstOrDefault(p => p.PolicyNumber == request.PolicyNumber);
         if (policy == null)
         {
-            return Array.Empty<ClaimResponse>();
+            return new GetClaimsByPolicyResponse { Claims = Array.Empty<ClaimResponse>() };
         }
 
         var claims = _context.Claims
@@ -55,15 +55,18 @@ public class ClaimsService : IClaimsService
             .OrderByDescending(c => c.CreatedAt)
             .ToList();
 
-        return claims.Select(c => new ClaimResponse
+        return new GetClaimsByPolicyResponse
         {
-            ClaimNumber = c.ClaimNumber,
-            PolicyNumber = policy.PolicyNumber,
-            Description = c.Description,
-            Amount = c.Amount,
-            Status = c.Status.ToString(),
-            IncidentDate = c.IncidentDate
-        }).ToArray();
+            Claims = claims.Select(c => new ClaimResponse
+            {
+                ClaimNumber = c.ClaimNumber,
+                PolicyNumber = policy.PolicyNumber,
+                Description = c.Description,
+                Amount = c.Amount,
+                Status = c.Status.ToString(),
+                IncidentDate = c.IncidentDate
+            }).ToArray()
+        };
     }
 
     public ClaimResponse CreateClaim(CreateClaimRequest request)

@@ -6,13 +6,34 @@ namespace Legacy.ClaimsService;
 public interface IClaimsService
 {
     [OperationContract]
-    ClaimResponse GetClaim(string claimNumber);
+    ClaimResponse GetClaim(GetClaimRequest request);
 
     [OperationContract]
-    ClaimResponse[] GetClaimsByPolicy(string policyNumber);
+    GetClaimsByPolicyResponse GetClaimsByPolicy(GetClaimsByPolicyRequest request);
 
     [OperationContract]
     ClaimResponse CreateClaim(CreateClaimRequest request);
+}
+
+[MessageContract]
+public class GetClaimRequest
+{
+    [MessageBodyMember]
+    public string ClaimNumber { get; set; } = string.Empty;
+}
+
+[MessageContract]
+public class GetClaimsByPolicyRequest
+{
+    [MessageBodyMember]
+    public string PolicyNumber { get; set; } = string.Empty;
+}
+
+[MessageContract]
+public class GetClaimsByPolicyResponse
+{
+    [MessageBodyMember]
+    public ClaimResponse[] Claims { get; set; } = Array.Empty<ClaimResponse>();
 }
 
 [MessageContract]

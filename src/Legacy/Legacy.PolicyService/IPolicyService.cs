@@ -6,13 +6,34 @@ namespace Legacy.PolicyService;
 public interface IPolicyService
 {
     [OperationContract]
-    PolicyResponse GetPolicy(string policyNumber);
+    PolicyResponse GetPolicy(GetPolicyRequest request);
 
     [OperationContract]
-    PolicyResponse[] GetPoliciesByCustomer(int customerId);
+    GetPoliciesByCustomerResponse GetPoliciesByCustomer(GetPoliciesByCustomerRequest request);
 
     [OperationContract]
     PolicyResponse CreatePolicy(CreatePolicyRequest request);
+}
+
+[MessageContract]
+public class GetPolicyRequest
+{
+    [MessageBodyMember]
+    public string PolicyNumber { get; set; } = string.Empty;
+}
+
+[MessageContract]
+public class GetPoliciesByCustomerRequest
+{
+    [MessageBodyMember]
+    public int CustomerId { get; set; }
+}
+
+[MessageContract]
+public class GetPoliciesByCustomerResponse
+{
+    [MessageBodyMember]
+    public PolicyResponse[] Policies { get; set; } = Array.Empty<PolicyResponse>();
 }
 
 [MessageContract]

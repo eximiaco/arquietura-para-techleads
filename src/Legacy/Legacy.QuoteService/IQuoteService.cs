@@ -9,10 +9,10 @@ public interface IQuoteService
     QuoteResponse GetQuote(QuoteRequest request);
 
     [OperationContract]
-    QuoteResponse[] GetQuotesByCustomer(int customerId);
+    GetQuotesByCustomerResponse GetQuotesByCustomer(GetQuotesByCustomerRequest request);
 
     [OperationContract]
-    bool ApproveQuote(string quoteNumber);
+    ApproveQuoteResponse ApproveQuote(ApproveQuoteRequest request);
 }
 
 [MessageContract]
@@ -29,6 +29,34 @@ public class QuoteRequest
 
     [MessageBodyMember]
     public int VehicleYear { get; set; }
+}
+
+[MessageContract]
+public class GetQuotesByCustomerRequest
+{
+    [MessageBodyMember]
+    public int CustomerId { get; set; }
+}
+
+[MessageContract]
+public class GetQuotesByCustomerResponse
+{
+    [MessageBodyMember]
+    public QuoteResponse[] Quotes { get; set; } = Array.Empty<QuoteResponse>();
+}
+
+[MessageContract]
+public class ApproveQuoteRequest
+{
+    [MessageBodyMember]
+    public string QuoteNumber { get; set; } = string.Empty;
+}
+
+[MessageContract]
+public class ApproveQuoteResponse
+{
+    [MessageBodyMember]
+    public bool Success { get; set; }
 }
 
 [MessageContract]

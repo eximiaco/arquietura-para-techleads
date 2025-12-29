@@ -15,7 +15,7 @@ public class PricingRulesService : IPricingRulesService
         _logger = logger;
     }
 
-    public PricingRuleResponse[] GetAllRules()
+    public GetAllRulesResponse GetAllRules(GetAllRulesRequest request)
     {
         _logger.LogInformation("GetAllRules called");
 
@@ -23,21 +23,24 @@ public class PricingRulesService : IPricingRulesService
             .OrderBy(r => r.Id)
             .ToList();
 
-        return rules.Select(r => new PricingRuleResponse
+        return new GetAllRulesResponse
         {
-            Id = r.Id,
-            Name = r.Name,
-            Description = r.Description,
-            Multiplier = r.Multiplier,
-            IsActive = r.IsActive
-        }).ToArray();
+            Rules = rules.Select(r => new PricingRuleResponse
+            {
+                Id = r.Id,
+                Name = r.Name,
+                Description = r.Description,
+                Multiplier = r.Multiplier,
+                IsActive = r.IsActive
+            }).ToArray()
+        };
     }
 
-    public PricingRuleResponse GetRule(int ruleId)
+    public PricingRuleResponse GetRule(GetRuleRequest request)
     {
-        _logger.LogInformation("GetRule called for RuleId: {RuleId}", ruleId);
+        _logger.LogInformation("GetRule called for RuleId: {RuleId}", request.RuleId);
 
-        var rule = _context.PricingRules.Find(ruleId);
+        var rule = _context.PricingRules.Find(request.RuleId);
         if (rule == null)
         {
             throw new FaultException("Rule not found");
@@ -53,7 +56,7 @@ public class PricingRulesService : IPricingRulesService
         };
     }
 
-    public bool UpdateRule(UpdateRuleRequest request)
+    public UpdateRuleResponse UpdateRule(UpdateRuleRequest request)
     {
         _logger.LogInformation("UpdateRule called for RuleId: {RuleId}, IsActive: {IsActive}", 
             request.Id, request.IsActive);
@@ -61,13 +64,13 @@ public class PricingRulesService : IPricingRulesService
         var rule = _context.PricingRules.Find(request.Id);
         if (rule == null)
         {
-            return false;
+            return new UpdateRuleResponse { Success = false };
         }
 
         rule.IsActive = request.IsActive;
         _context.SaveChanges();
 
-        return true;
+        return new UpdateRuleResponse { Success = true };
     }
 }
 
