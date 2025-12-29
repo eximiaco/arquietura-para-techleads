@@ -1,0 +1,57 @@
+@model List<SeguroAuto.Web.Models.PricingRuleViewModel>
+@{
+    ViewData["Title"] = "Regras de Precificação";
+}
+
+<h2>Regras de Precificação</h2>
+
+<div class="card">
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Descrição</th>
+                        <th>Multiplicador</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var rule in Model)
+                    {
+                        <tr>
+                            <td>@rule.Id</td>
+                            <td>@rule.Name</td>
+                            <td>@rule.Description</td>
+                            <td>@rule.Multiplier.ToString("F2")</td>
+                            <td>
+                                <span class="badge @(rule.IsActive ? "bg-success" : "bg-secondary")">
+                                    @(rule.IsActive ? "Ativa" : "Inativa")
+                                </span>
+                            </td>
+                            <td>
+                                <form asp-action="Toggle" method="post" class="d-inline">
+                                    <input type="hidden" name="id" value="@rule.Id" />
+                                    <input type="hidden" name="isActive" value="@rule.IsActive" />
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm @(rule.IsActive ? "btn-warning" : "btn-success")">
+                                        @(rule.IsActive ? "Desativar" : "Ativar")
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="text-muted">Nenhuma regra encontrada.</p>
+        }
+    </div>
+</div>
+

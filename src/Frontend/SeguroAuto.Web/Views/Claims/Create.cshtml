@@ -1,0 +1,50 @@
+@model SeguroAuto.Web.Models.ClaimCreateViewModel
+@{
+    ViewData["Title"] = "Novo Sinistro";
+}
+
+<h2>Novo Sinistro</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+            
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            
+            <div class="mb-3">
+                <label asp-for="PolicyNumber" class="form-label"></label>
+                <input asp-for="PolicyNumber" class="form-control" readonly />
+                <span asp-validation-for="PolicyNumber" class="text-danger"></span>
+            </div>
+            
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label"></label>
+                <textarea asp-for="Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+            
+            <div class="mb-3">
+                <label asp-for="Amount" class="form-label"></label>
+                <input asp-for="Amount" class="form-control" type="number" step="0.01" />
+                <span asp-validation-for="Amount" class="text-danger"></span>
+            </div>
+            
+            <div class="mb-3">
+                <label asp-for="IncidentDate" class="form-label"></label>
+                <input asp-for="IncidentDate" class="form-control" type="datetime-local" />
+                <span asp-validation-for="IncidentDate" class="text-danger"></span>
+            </div>
+            
+            <div class="mb-3">
+                <button type="submit" class="btn btn-primary">Criar Sinistro</button>
+                <a asp-action="Index" asp-route-policyNumber="@Model.PolicyNumber" class="btn btn-secondary">Cancelar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+}
+

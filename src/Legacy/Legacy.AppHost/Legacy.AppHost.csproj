@@ -19,6 +19,7 @@
     <ProjectReference Include="..\Legacy.PolicyService\Legacy.PolicyService.csproj" />
     <ProjectReference Include="..\Legacy.ClaimsService\Legacy.ClaimsService.csproj" />
     <ProjectReference Include="..\Legacy.PricingRulesService\Legacy.PricingRulesService.csproj" />
+    <ProjectReference Include="..\..\Frontend\SeguroAuto.Web\SeguroAuto.Web.csproj" />
   </ItemGroup>
 
 </Project>

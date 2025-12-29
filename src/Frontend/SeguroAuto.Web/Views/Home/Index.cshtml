@@ -1,0 +1,48 @@
+@{
+    ViewData["Title"] = "Início";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Bem-vindo ao Seguro Auto</h1>
+    <p class="lead">Sistema de gerenciamento de seguros para automóveis</p>
+    
+    <div class="row mt-5">
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Cotações</h5>
+                    <p class="card-text">Gerencie cotações de seguro</p>
+                    <a asp-controller="Quotes" asp-action="Index" class="btn btn-primary">Ver Cotações</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Apólices</h5>
+                    <p class="card-text">Visualize e crie apólices</p>
+                    <a asp-controller="Policies" asp-action="Index" class="btn btn-primary">Ver Apólices</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Sinistros</h5>
+                    <p class="card-text">Gerencie sinistros</p>
+                    <a asp-controller="Claims" asp-action="Index" asp-route-policyNumber="AUTO-1234" class="btn btn-primary">Ver Sinistros</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Regras</h5>
+                    <p class="card-text">Configure regras de precificação</p>
+                    <a asp-controller="PricingRules" asp-action="Index" class="btn btn-primary">Ver Regras</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+

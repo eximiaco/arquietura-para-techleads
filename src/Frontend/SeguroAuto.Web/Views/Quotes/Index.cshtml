@@ -1,0 +1,67 @@
+@model List<SeguroAuto.Web.Models.QuoteViewModel>
+@{
+    ViewData["Title"] = "Cotações";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Cotações</h2>
+    <a asp-action="Create" class="btn btn-primary">Nova Cotação</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <form method="get" class="d-flex gap-2">
+            <input type="number" name="customerId" value="@ViewBag.CustomerId" class="form-control" placeholder="ID do Cliente" style="max-width: 200px;" />
+            <button type="submit" class="btn btn-secondary">Filtrar</button>
+        </form>
+    </div>
+    <div class="card-body">
+        @if (Model.Any())
+        {
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Número da Cotação</th>
+                        <th>Cliente ID</th>
+                        <th>Prêmio</th>
+                        <th>Válido Até</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var quote in Model)
+                    {
+                        <tr>
+                            <td>@quote.QuoteNumber</td>
+                            <td>@quote.CustomerId</td>
+                            <td>@quote.Premium.ToString("C")</td>
+                            <td>@quote.ValidUntil.ToString("dd/MM/yyyy")</td>
+                            <td>
+                                <span class="badge @(quote.Status == "Approved" ? "bg-success" : "bg-warning")">
+                                    @quote.Status
+                                </span>
+                            </td>
+                            <td>
+                                @if (quote.Status != "Approved")
+                                {
+                                    <form asp-action="Approve" method="post" class="d-inline">
+                                        <input type="hidden" name="quoteNumber" value="@quote.QuoteNumber" />
+                                        <input type="hidden" name="customerId" value="@quote.CustomerId" />
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-success">Aprovar</button>
+                                    </form>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p class="text-muted">Nenhuma cotação encontrada.</p>
+        }
+    </div>
+</div>
+
