@@ -1,64 +1,68 @@
 using System.ServiceModel;
+using System.ServiceModel.Channels;
+using CoreWCF;
+using EndpointAddress = System.ServiceModel.EndpointAddress;
+using IClientChannel = System.ServiceModel.IClientChannel;
 
 namespace Legacy.TestClient;
 
 // Contratos simplificados para teste
-[ServiceContract(Namespace = "http://eximia.co/seguroauto/legacy")]
+[System.ServiceModel.ServiceContract(Namespace = "http://eximia.co/seguroauto/legacy")]
 public interface IQuoteService
 {
-    [OperationContract]
+    [System.ServiceModel.OperationContract]
     QuoteResponse GetQuote(QuoteRequest request);
 
-    [OperationContract]
+    [System.ServiceModel.OperationContract]
     GetQuotesByCustomerResponse GetQuotesByCustomer(GetQuotesByCustomerRequest request);
 }
 
-[MessageContract]
+[System.ServiceModel.MessageContract]
 public class QuoteRequest
 {
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public int CustomerId { get; set; }
 
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public string VehiclePlate { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public string VehicleModel { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public int VehicleYear { get; set; }
 }
 
-[MessageContract]
+[System.ServiceModel.MessageContract]
 public class GetQuotesByCustomerRequest
 {
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public int CustomerId { get; set; }
 }
 
-[MessageContract]
+[System.ServiceModel.MessageContract]
 public class GetQuotesByCustomerResponse
 {
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public QuoteResponse[] Quotes { get; set; } = Array.Empty<QuoteResponse>();
 }
 
-[MessageContract]
+[System.ServiceModel.MessageContract]
 public class QuoteResponse
 {
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public string QuoteNumber { get; set; } = string.Empty;
 
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public int CustomerId { get; set; }
 
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public decimal Premium { get; set; }
 
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public DateTime ValidUntil { get; set; }
 
-    [MessageBodyMember]
+    [System.ServiceModel.MessageBodyMember]
     public string Status { get; set; } = string.Empty;
 }
 
@@ -73,7 +77,7 @@ class Program
 
         try
         {
-            var binding = new BasicHttpBinding();
+            var binding = new CustomBinding();
             var endpoint = new EndpointAddress($"{baseUrl}/QuoteService.svc");
             var factory = new ChannelFactory<IQuoteService>(binding, endpoint);
             var client = factory.CreateChannel();

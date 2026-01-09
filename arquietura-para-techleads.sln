@@ -30,7 +30,7 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Legacy.AppHost", "src\Legacy\Legacy.AppHost\Legacy.AppHost.csproj", "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Modernization", "Modernization", "{C3D4E5F6-A7B8-4C5D-9E0F-1A2B3C4D5E6F}"
-EndProject
+EndProject`
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Modern.Api", "src\Modernization\Modern.Api\Modern.Api.csproj", "{BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Modern.Gateway", "src\Modernization\Modern.Gateway\Modern.Gateway.csproj", "{CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC}"
