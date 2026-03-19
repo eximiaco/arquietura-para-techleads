@@ -1,9 +1,23 @@
+using OpenTelemetry.Trace;
 using SeguroAuto.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: tracing distribuído + metrics exportados via OTLP para o Aspire Dashboard
 builder.AddServiceDefaults();
+
+// Gateway: mostra o path real no span (ex: "GET /QuoteService.svc")
+// em vez do route template YARP (ex: "GET /{**remainder}")
+builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
+{
+    tracing.AddAspNetCoreInstrumentation(options =>
+    {
+        options.EnrichWithHttpRequest = (activity, request) =>
+        {
+            activity.DisplayName = $"{request.Method} {request.Path}";
+        };
+    });
+});
 
 // Função auxiliar para obter URL do serviço via service discovery do Aspire
 // O Aspire injeta variáveis no formato: services__{service-name}__{endpoint-name}__{index}
