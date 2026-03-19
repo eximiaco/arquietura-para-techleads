@@ -1,6 +1,6 @@
 # Arquitetura do Sistema - Seguro Auto
 
-Este documento descreve em detalhes a arquitetura, estratégias e decisões técnicas do projeto de modernização de legado para o domínio de Seguro para Automóveis.
+Este documento descreve em detalhes a arquitetura, estratégias e decisões técnicas do projeto de sistema legado para o domínio de Seguro para Automóveis, com foco em observabilidade e telemetria.
 
 ---
 
@@ -12,34 +12,34 @@ Este documento descreve em detalhes a arquitetura, estratégias e decisões téc
 - [Estratégias de Uso do SQLite](#estratégias-de-uso-do-sqlite)
 - [Service Discovery e Gateway](#service-discovery-e-gateway)
 - [Fault Injection e Resiliência](#fault-injection-e-resiliência)
-- [Padrões de Modernização](#padrões-de-modernização)
 - [Orquestração com .NET Aspire](#orquestração-com-net-aspire)
 - [Ciclo de Vida e Dependency Injection](#ciclo-de-vida-e-dependency-injection)
 - [Observabilidade e Logging](#observabilidade-e-logging)
+- [Telemetria de Banco de Dados](#telemetria-de-banco-de-dados)
 
 ---
 
 ## Visão Geral da Arquitetura
 
-O projeto implementa uma arquitetura de modernização incremental, demonstrando a evolução de um sistema legado baseado em WCF/SOAP para uma arquitetura moderna baseada em REST/HTTP.
+O projeto implementa uma arquitetura de sistema legado baseado em WCF/SOAP, com observabilidade completa através de OpenTelemetry e .NET Aspire. O foco é demonstrar como instrumentar e monitorar serviços legados com tracing distribuído, métricas e logs estruturados.
 
 ### Princípios Arquiteturais
 
 1. **Redução de Fricção**: Zero dependências de Windows, IIS ou SQL Server
-2. **Isolamento por Demo**: Cada demo possui seu próprio banco de dados e configuração
-3. **Coexistência Gradual**: Legado e moderno convivem durante a transição
-4. **Observabilidade Integrada**: Logs, traces e métricas através do Aspire Dashboard
-5. **Dados Determinísticos**: Seeding idempotente com IDs âncora para testes consistentes
+2. **Observabilidade Integrada**: Tracing distribuído com OpenTelemetry, logs e métricas através do Aspire Dashboard
+3. **Dados Determinísticos**: Seeding idempotente com IDs âncora para testes consistentes
+4. **Telemetria Profunda**: Spans customizados para operações SOAP, fault injection e banco de dados
 
 ### Stack Tecnológico
 
-- **.NET 9**: Framework base para todos os projetos
+- **.NET 10**: Framework base para todos os projetos
 - **CoreWCF**: Compatibilidade com WCF/SOAP em .NET moderno
-- **ASP.NET Core**: Host para serviços REST e CoreWCF
+- **ASP.NET Core**: Host para serviços CoreWCF
 - **Entity Framework Core**: ORM para acesso a dados
 - **SQLite**: Banco de dados leve e portável
 - **.NET Aspire**: Orquestração e observabilidade
-- **YARP**: Proxy reverso para gateways
+- **OpenTelemetry**: Tracing distribuído, métricas e exportação OTLP
+- **YARP**: Proxy reverso para gateway
 
 ---
 
@@ -68,7 +68,7 @@ public interface IQuoteService
 {
     [OperationContract]
     QuoteResponse GetQuote(QuoteRequest request);
-    
+
     [OperationContract]
     GetQuotesByCustomerResponse GetQuotesByCustomer(GetQuotesByCustomerRequest request);
 }
@@ -89,13 +89,13 @@ public class QuoteRequest
 {
     [MessageBodyMember(Order = 1)]
     public int CustomerId { get; set; }
-    
+
     [MessageBodyMember(Order = 2)]
     public string VehiclePlate { get; set; } = string.Empty;
-    
+
     [MessageBodyMember(Order = 3)]
     public string VehicleModel { get; set; } = string.Empty;
-    
+
     [MessageBodyMember(Order = 4)]
     public int VehicleYear { get; set; }
 }
@@ -121,7 +121,7 @@ public class QuoteService : IQuoteService
         _context = context;
         _logger = logger;
     }
-    
+
     public QuoteResponse GetQuote(QuoteRequest request)
     {
         // Implementação...
@@ -230,6 +230,7 @@ public class SeguroAutoDbContext : DbContext
     public DbSet<Claim> Claims { get; set; }
     public DbSet<Quote> Quotes { get; set; }
     public DbSet<PricingRule> PricingRules { get; set; }
+    public DbSet<DbOperationLog> DbOperationLogs { get; set; }
 }
 ```
 
@@ -240,7 +241,6 @@ Responsável pelo seeding inicial do banco de dados:
 - **Idempotente**: Só executa se o banco estiver vazio
 - **Determinístico**: Usa seed fixo para gerar dados consistentes
 - **IDs Âncora**: Sempre cria customer 999, policy 1234, etc.
-- **Perfis**: Diferentes perfis de dados por demo (`legacy`, `modern`, `lab`)
 
 #### `ServiceCollectionExtensions`
 
@@ -266,7 +266,7 @@ Cada serviço Legacy (`Legacy.*Service`) implementa:
 - Formato SOAP: Usa prefixo `legacy:` com namespace definido no `soap:Envelope`
 - Exemplo de formato correto:
   ```xml
-  <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" 
+  <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
                  xmlns:legacy="http://eximia.co/seguroauto/legacy">
       <soap:Body>
           <legacy:QuoteRequest>
@@ -286,18 +286,24 @@ Cada serviço Legacy (`Legacy.*Service`) implementa:
 - Localizado em `src/Frontend/SeguroAuto.Web`
 - Acessível através do Gateway na porta 15100
 
-#### Modern.Api (REST)
-- Controllers ASP.NET Core
-- Endpoints REST em `/api/*`
-- Respostas em JSON
-
-#### Gateways (YARP)
+#### Gateway (YARP)
 - Proxy reverso para roteamento
 - Service discovery automático
-- Feature flags (Lab.Gateway)
 - **Legacy Gateway**: Porta fixa 15100, expõe serviços SOAP e Frontend MVC
 
 ### Camada de Infraestrutura Compartilhada
+
+#### `SeguroAuto.ServiceDefaults`
+
+Projeto compartilhado que configura OpenTelemetry para todos os serviços:
+
+- **Tracing**: Instrumentação de ASP.NET Core, HttpClient e ActivitySources customizados
+- **Métricas**: ASP.NET Core, HttpClient e runtime
+- **Exportação OTLP**: Envia dados para o Aspire Dashboard automaticamente
+- **ActivitySources registrados**:
+  - `SeguroAuto.Web.SoapClient`: Spans para chamadas SOAP do frontend
+  - `SeguroAuto.FaultInjection`: Spans para injeção de falhas
+  - `SeguroAuto.Database`: Spans para operações de banco de dados
 
 #### `SeguroAuto.FaultInjection`
 
@@ -322,20 +328,17 @@ Utilitários compartilhados (estrutura preparada para expansão)
 3. **Cross-Platform**: Funciona em Windows, macOS e Linux
 4. **Ideal para Demos**: Rápido, leve, suficiente para cenários de treinamento
 
-### Isolamento por Demo
+### Banco de Dados
 
-Cada demo possui seu próprio arquivo SQLite isolado:
+O projeto utiliza um arquivo SQLite isolado:
 
-| Demo | Arquivo | Seed | Profile |
-|------|---------|------|---------|
-| Legacy | `legacy.db` | 1001 | `legacy` |
-| Modernization | `modernization.db` | 2002 | `modern` |
-| Lab | `lab.db` | 3003 | `lab` |
+| Arquivo | Seed | Profile |
+|---------|------|---------|
+| `legacy.db` | 1001 | `legacy` |
 
 **Vantagens:**
-- Dados não se misturam entre demos
-- Pode executar múltiplos demos simultaneamente
 - Reset fácil: deletar o arquivo `.db`
+- Sem necessidade de servidor externo
 
 ### Configuração de Caminho
 
@@ -376,7 +379,7 @@ public async Task SeedAsync()
     {
         return; // Já foi populado, não executa novamente
     }
-    
+
     // Popula o banco...
 }
 ```
@@ -392,7 +395,7 @@ O `SeguroAutoDbContext` configura:
 
 - **Chaves primárias**: Para todas as entidades
 - **Índices únicos**: Document, PolicyNumber, ClaimNumber, QuoteNumber
-- **Relacionamentos**: Customer → Policies → Claims (cascade delete)
+- **Relacionamentos**: Customer -> Policies -> Claims (cascade delete)
 - **Foreign Keys**: Garantem integridade referencial
 
 ---
@@ -415,7 +418,7 @@ services__quote-service__http__0=http://localhost:59219
 
 ### Gateway Legacy com AddYarp()
 
-O demo Legacy usa `AddYarp()` nativo do Aspire para criar um gateway:
+O projeto usa `AddYarp()` nativo do Aspire para criar um gateway:
 
 ```csharp
 var gateway = builder.AddYarp("gateway")
@@ -430,7 +433,7 @@ var gateway = builder.AddYarp("gateway")
         yarp.AddRoute("/PolicyService.svc/{**catch-all}", policyService);
         yarp.AddRoute("/ClaimsService.svc/{**catch-all}", claimsService);
         yarp.AddRoute("/PricingRulesService.svc/{**catch-all}", pricingRulesService);
-        
+
         // Rota para o frontend MVC (catch-all)
         yarp.AddRoute("/{**catch-all}", frontend);
     });
@@ -444,40 +447,9 @@ var gateway = builder.AddYarp("gateway")
 - **Porta fixa (15100)**: Facilita testes e uso de arquivos .http
 
 **Porta fixa do Gateway:**
-- O gateway Legacy sempre responde na porta **15100**
+- O gateway sempre responde na porta **15100**
 - Isso permite usar URLs fixas em arquivos `.http` e scripts de teste
 - Os demais serviços continuam com portas dinâmicas (gerenciadas pelo Aspire)
-
-### Gateway Modernization (Strangler Fig)
-
-O `Modern.Gateway` implementa o padrão **Strangler Fig**:
-
-- Roteia `/api/*` para `Modern.Api` (REST)
-- Roteia `/legacy/*` para serviços Legacy (SOAP)
-- Permite migração incremental endpoint por endpoint
-
-### Gateway Lab (Feature Flags)
-
-O `Lab.Gateway` implementa feature flags para alternar entre Legacy e Modern:
-
-```csharp
-var useModern = Environment.GetEnvironmentVariable("USE_MODERN_API")?.ToLower() == "true";
-
-if (useModern && context.Request.Path.StartsWithSegments("/api"))
-{
-    // Roteia para Modern API
-}
-else if (!useModern && context.Request.Path.StartsWithSegments("/api"))
-{
-    // Roteia para Legacy (converte REST para SOAP)
-    context.Request.Path = "/legacy" + context.Request.Path;
-}
-```
-
-**Uso didático:**
-- Permite "virar a chave" entre Legacy e Modern
-- Demonstra feature flags em ação
-- Facilita testes A/B durante o treinamento
 
 ---
 
@@ -604,75 +576,16 @@ app.UseServiceModel(...); // CoreWCF
 
 ---
 
-## Padrões de Modernização
-
-### 1. Strangler Fig Pattern
-
-O demo **Modernization** implementa o padrão Strangler Fig:
-
-**Conceito:**
-- Gradualmente "estrangula" o sistema legado
-- Extrai funcionalidades para o novo sistema
-- Mantém legado funcionando durante a transição
-
-**Implementação:**
-- `Modern.Gateway` roteia requisições
-- Novos endpoints em `Modern.Api` (REST)
-- Endpoints legados continuam funcionando (SOAP)
-- Migração endpoint por endpoint
-
-**Exemplo:**
-```
-GET /api/quotes/customer/999  → Modern.Api (REST)
-POST /legacy/QuoteService.svc → Legacy.QuoteService (SOAP)
-```
-
-### 2. Feature Flags
-
-O demo **Lab** implementa feature flags:
-
-**Conceito:**
-- Alternar entre implementações sem deploy
-- Testar nova implementação com tráfego limitado
-- Rollback rápido em caso de problemas
-
-**Implementação:**
-```csharp
-var useModern = Environment.GetEnvironmentVariable("USE_MODERN_API")?.ToLower() == "true";
-
-if (useModern)
-{
-    // Roteia para Modern.Api
-}
-else
-{
-    // Roteia para Legacy Services
-}
-```
-
-**Uso:**
-- `USE_MODERN_API=true`: Usa Modern.Api
-- `USE_MODERN_API=false`: Usa Legacy Services
-
-### 3. Coexistência Legado + Moderno
-
-Durante a modernização, ambos os sistemas convivem:
-
-- **Legado**: Continua funcionando, recebe manutenção mínima
-- **Moderno**: Recebe novas funcionalidades e melhorias
-- **Gateway**: Orquestra o roteamento entre ambos
-
----
-
 ## Orquestração com .NET Aspire
 
-### AppHost por Demo
+### Legacy.AppHost
 
-Cada demo possui seu próprio `AppHost` que orquestra todos os serviços:
+O `Legacy.AppHost` orquestra todos os serviços do sistema:
 
-- **Legacy.AppHost**: Orquestra serviços Legacy + Gateway
-- **Modernization.AppHost**: Orquestra Legacy + Modern.Api + Gateway
-- **Lab.AppHost**: Orquestra Legacy + Modern.Api + Gateway com feature flags
+- 4 serviços Legacy (Quote, Policy, Claims, PricingRules)
+- Gateway YARP (porta fixa 15100)
+- Frontend MVC (SeguroAuto.Web)
+- DbTelemetryWorker (worker de telemetria de banco)
 
 ### Configuração de Serviços
 
@@ -701,15 +614,12 @@ var gateway = builder.AddYarp("gateway")
     });
 ```
 
-### Portas do Dashboard
+### Dashboard
 
-Cada demo usa portas diferentes para o dashboard:
+O Aspire Dashboard fica disponível em:
 
-- **Legacy**: `http://localhost:15000`
-- **Modernization**: `http://localhost:15010`
-- **Lab**: `http://localhost:15020`
-
-Isso permite executar múltiplos demos simultaneamente.
+- **Dashboard**: `http://localhost:15000`
+- **OTLP Endpoint**: `http://localhost:15001`
 
 ---
 
@@ -742,20 +652,13 @@ services.AddDbContext<SeguroAutoDbContext>(options =>
 - Compartilhada entre serviços na mesma requisição
 - Dispose automático ao final da requisição
 
-### Ciclo de Vida dos Controllers REST
-
-Os controllers do `Modern.Api` usam o ciclo de vida padrão do ASP.NET Core:
-
-- **Scoped**: Uma instância por requisição HTTP
-- Gerenciado automaticamente pelo framework
-
 ### Injeção de Dependências
 
 Todos os serviços recebem dependências via construtor:
 
 ```csharp
 public QuoteService(
-    SeguroAutoDbContext context, 
+    SeguroAutoDbContext context,
     ILogger<QuoteService> logger)
 {
     _context = context;
@@ -772,12 +675,58 @@ public QuoteService(
 
 ## Observabilidade e Logging
 
+### OpenTelemetry e ServiceDefaults
+
+O projeto `SeguroAuto.ServiceDefaults` configura OpenTelemetry para todos os serviços de forma centralizada:
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddSource("SeguroAuto.Web.SoapClient")
+            .AddSource("SeguroAuto.FaultInjection")
+            .AddSource("SeguroAuto.Database")
+            .AddAspNetCoreInstrumentation(options =>
+            {
+                options.RecordException = true;
+            })
+            .AddHttpClientInstrumentation(options =>
+            {
+                options.RecordException = true;
+            });
+    })
+    .WithMetrics(metrics =>
+    {
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation();
+    })
+    .UseOtlpExporter();
+```
+
+O Aspire injeta automaticamente nos processos filhos as variáveis `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME` e `OTEL_RESOURCE_ATTRIBUTES`, garantindo que cada serviço exporte telemetria para o Dashboard sem configuracao manual.
+
+### Spans Customizados
+
+O sistema registra tres `ActivitySource` customizados para tracing profundo:
+
+#### 1. `SeguroAuto.Web.SoapClient`
+Spans criados pelo frontend ao fazer chamadas SOAP para os serviços Legacy. Permitem visualizar no trace distribuído o tempo gasto em cada chamada SOAP, incluindo a construção do envelope XML e o parsing da resposta.
+
+#### 2. `SeguroAuto.FaultInjection`
+Spans emitidos pelo middleware de fault injection. Registram quando uma falha é injetada (delay, error ou chaos), o tipo de falha e a duração do delay aplicado. Facilitam a correlação entre falhas injetadas e seus efeitos no trace.
+
+#### 3. `SeguroAuto.Database`
+Spans emitidos pelo `DbTelemetryWorker` a partir dos registros da tabela `db_operation_logs`. Representam operações de banco de dados (INSERT, UPDATE, SELECT) vinculadas ao trace original do serviço que executou a operação. Incluem tags semanticas OpenTelemetry como `db.system`, `db.operation`, `db.sql.table`.
+
 ### Logging Estruturado
 
 Todos os serviços usam `ILogger<T>` para logging estruturado:
 
 ```csharp
-_logger.LogInformation("GetQuote called for CustomerId: {CustomerId}, Vehicle: {VehicleModel}", 
+_logger.LogInformation("GetQuote called for CustomerId: {CustomerId}, Vehicle: {VehicleModel}",
     request.CustomerId, request.VehicleModel);
 
 _logger.LogError(ex, "Error in GetQuote for CustomerId: {CustomerId}", request.CustomerId);
@@ -793,7 +742,7 @@ _logger.LogError(ex, "Error in GetQuote for CustomerId: {CustomerId}", request.C
 O .NET Aspire fornece observabilidade integrada:
 
 - **Logs**: Visualização de logs de todos os serviços
-- **Traces**: Rastreamento distribuído de requisições
+- **Traces**: Rastreamento distribuído de requisições (incluindo spans SOAP, fault injection e banco)
 - **Métricas**: Performance e saúde dos serviços
 - **Service Map**: Visualização da topologia dos serviços
 
@@ -804,54 +753,83 @@ Todos os serviços implementam tratamento consistente:
 1. **Try-Catch** em todas as operações públicas
 2. **Logging** de erros com contexto
 3. **FaultException** para erros de negócio (SOAP)
-4. **HTTP Status Codes** apropriados (REST)
 
 ---
 
-## Estrutura de Demos
+## Telemetria de Banco de Dados
 
-### Demo 1: Legacy
+### Visão Geral
 
-**Objetivo**: Mostrar o cenário legado puro
+O sistema implementa um padrão de telemetria assíncrona para operações de banco de dados, permitindo visualizar no Aspire Dashboard spans de operações SQL vinculados ao trace original do serviço.
+
+### Tabela `db_operation_logs`
+
+A tabela `db_operation_logs` armazena registros de operações de banco de dados com contexto de trace:
+
+```csharp
+modelBuilder.Entity<DbOperationLog>(entity =>
+{
+    entity.ToTable("db_operation_logs");
+    entity.HasKey(e => e.Id);
+    entity.HasIndex(e => e.Exported);
+});
+```
+
+Cada registro contém:
+- **TraceId / SpanId**: Contexto do trace original (permite vincular o span como filho)
+- **OperationName**: Nome da operação (ex: `INSERT Customer`)
+- **OperationType**: Tipo da operação SQL (INSERT, UPDATE, SELECT, DELETE)
+- **TableName**: Tabela afetada
+- **StartedAt / EndedAt**: Timestamps da operação
+- **Status**: Sucesso ou erro
+- **ErrorMessage**: Mensagem de erro (quando aplicável)
+- **Details**: Detalhes adicionais
+- **Exported**: Flag indicando se o registro já foi processado pelo worker
+
+### DbTelemetryWorker
+
+O `Legacy.DbTelemetryWorker` é um `BackgroundService` que faz polling na tabela `db_operation_logs` a cada 2 segundos e converte registros pendentes em spans OpenTelemetry:
+
+```csharp
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+{
+    while (!stoppingToken.IsCancellationRequested)
+    {
+        await ProcessPendingLogsAsync(stoppingToken);
+        await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+    }
+}
+```
+
+**Processo de conversão:**
+
+1. Busca ate 50 registros com `Exported = false`
+2. Para cada registro, reconstroi o `ActivityContext` original a partir de `TraceId` e `SpanId`
+3. Cria um novo span usando `ActivitySource("SeguroAuto.Database")` com o parent context original
+4. Adiciona tags semanticas OpenTelemetry: `db.system`, `db.operation`, `db.sql.table`, `db.operation.name`
+5. Marca o registro como `Exported = true`
+
+**Resultado:** Os spans de banco aparecem no Aspire Dashboard como filhos do trace do servico que executou a operacao, proporcionando visibilidade completa do fluxo desde a requisição HTTP ate a operação no SQLite.
+
+---
+
+## Componentes do Sistema
+
+### Visão Geral
 
 **Componentes:**
 - 4 serviços CoreWCF (Quote, Policy, Claims, PricingRules)
 - Gateway YARP nativo do Aspire (porta fixa 15100)
 - Frontend MVC (ASP.NET Core) - consome serviços através do Gateway
+- DbTelemetryWorker - worker de telemetria de banco de dados
 - Banco `legacy.db`
 - Fault injection habilitado (delay 300ms)
-
-**Uso**: Demonstrar problemas de legado, latência, contratos rígidos
 
 **Acesso:**
 - Gateway: http://localhost:15100 (porta fixa)
 - Frontend: http://localhost:15100 (através do gateway)
 - Serviços SOAP: http://localhost:15100/QuoteService.svc (através do gateway)
-
-### Demo 2: Modernization
-
-**Objetivo**: Mostrar coexistência legado + moderno
-
-**Componentes:**
-- Serviços Legacy (SOAP)
-- Modern.Api (REST)
-- Modern.Gateway (Strangler Fig)
-- Banco `modernization.db`
-- Fault injection desabilitado
-
-**Uso**: Demonstrar Strangler Fig Pattern, migração incremental
-
-### Demo 3: Lab
-
-**Objetivo**: Hands-on durante treinamento
-
-**Componentes:**
-- Serviços Legacy + Modern.Api
-- Lab.Gateway (Feature Flags)
-- Banco `lab.db`
-- Fault injection configurável (chaos mode)
-
-**Uso**: Exercícios práticos, feature flags, resiliência
+- Dashboard Aspire: http://localhost:15000
 
 ---
 
@@ -873,13 +851,13 @@ Todos os serviços implementam tratamento consistente:
 
 **Impacto**: Melhor isolamento, sem problemas de concorrência
 
-### 3. SQLite por Demo
+### 3. SQLite como Banco de Dados
 
-**Decisão**: Um arquivo SQLite isolado por demo
+**Decisão**: Usar SQLite como banco de dados
 
-**Razão**: Isolamento de dados, facilita reset, permite execução simultânea
+**Razão**: Isolamento de dados, facilita reset, zero setup
 
-**Impacto**: Dados não se misturam, mas requer gerenciamento de arquivos
+**Impacto**: Dados em arquivo único, mas requer gerenciamento de arquivos
 
 ### 4. Seeding Idempotente
 
@@ -895,15 +873,15 @@ Todos os serviços implementam tratamento consistente:
 
 **Razão**: Service discovery automático, sem problemas de HttpSys, mais simples
 
-**Impacto**: Requer Aspire 9.3+ (ou versão com suporte a YARP)
+**Impacto**: Requer Aspire com suporte a YARP
 
-### 6. Porta Fixa do Gateway Legacy
+### 6. Porta Fixa do Gateway
 
-**Decisão**: Gateway Legacy sempre usa porta fixa 15100
+**Decisão**: Gateway sempre usa porta fixa 15100
 
 **Razão**: Facilita testes e uso de arquivos `.http` sem precisar atualizar URLs a cada execução
 
-**Impacto**: 
+**Impacto**:
 - URLs fixas em arquivos de teste
 - Facilita desenvolvimento e debugging
 - Demais serviços continuam com portas dinâmicas
@@ -924,13 +902,13 @@ var gateway = builder.AddYarp("gateway")
 
 **Razão**: CoreWCF requer namespace explícito para deserialização correta dos MessageContracts
 
-**Impacto**: 
+**Impacto**:
 - XML SOAP mais verboso, mas compatível com CoreWCF
 - Parsing das respostas deve suportar namespace com/sem prefixo (fallback)
 
 **Formato correto:**
 ```xml
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" 
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"
                xmlns:legacy="http://eximia.co/seguroauto/legacy">
     <soap:Body>
         <legacy:QuoteRequest>
@@ -956,7 +934,7 @@ public class QuoteRequest
 {
     [MessageBodyMember(Order = 1)]
     public int CustomerId { get; set; }
-    
+
     [MessageBodyMember(Order = 2)]
     public string VehiclePlate { get; set; } = string.Empty;
 }
@@ -968,11 +946,22 @@ public class QuoteRequest
 
 **Razão**: Demonstra integração de aplicações modernas com serviços legados SOAP
 
-**Impacto**: 
+**Impacto**:
 - Frontend usa `HttpClientFactory` para fazer requisições SOAP
 - Parsing manual de XML SOAP nas respostas
 - Suporte a namespace com/sem prefixo para robustez
 - Service discovery do Aspire para obter URL do gateway
+
+### 10. Telemetria Assíncrona de Banco via Worker
+
+**Decisão**: Usar tabela `db_operation_logs` + `BackgroundService` em vez de instrumentação síncrona do EF Core
+
+**Razão**: Desacopla a emissão de spans da operação de banco, evitando overhead no path crítico dos serviços
+
+**Impacto**:
+- Spans de banco aparecem com delay de ate 2 segundos no Dashboard
+- Worker independente pode ser escalado separadamente
+- Trace context preservado via TraceId/SpanId na tabela
 
 ---
 
@@ -980,7 +969,7 @@ public class QuoteRequest
 
 ### SQLite em Produção
 
-**⚠️ Aviso**: SQLite não é recomendado para produção com alta concorrência
+**Aviso**: SQLite não é recomendado para produção com alta concorrência
 
 **Limitações:**
 - Escrita sequencial (lock de arquivo)
@@ -1023,13 +1012,6 @@ CoreWCF é mais leve que WCF clássico:
    - Definir namespace no `soap:Envelope`
    - Implementar parsing com fallback para namespace com/sem prefixo
 
-### Adicionar Novo Endpoint REST
-
-1. Criar controller em `Modern.Api/Controllers/`
-2. Implementar ações HTTP (GET, POST, etc.)
-3. Usar `SeguroAutoDbContext` para acesso a dados
-4. Gateway roteia automaticamente `/api/*` para Modern.Api
-
 ### Adicionar Nova Regra de Fault Injection
 
 1. Adicionar novo `FaultErrorKind` no enum
@@ -1058,7 +1040,7 @@ private string BuildSoapEnvelope(string body)
 {
     // Namespace legacy definido no Envelope
     return $@"<?xml version=""1.0"" encoding=""utf-8""?>
-<soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/"" 
+<soap:Envelope xmlns:soap=""http://schemas.xmlsoap.org/soap/envelope/""
                xmlns:legacy=""{Namespace}"">
     <soap:Body>
         {body}
@@ -1090,8 +1072,8 @@ var quoteResponse = body?.Descendants(legacyNs + "QuoteResponse").FirstOrDefault
                 ?? body?.Descendants().FirstOrDefault(e => e.Name.LocalName == "QuoteResponse");
 
 // Para elementos filhos também
-var quoteNumber = quoteResponse.Element(legacyNs + "QuoteNumber")?.Value 
-               ?? quoteResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "QuoteNumber")?.Value 
+var quoteNumber = quoteResponse.Element(legacyNs + "QuoteNumber")?.Value
+               ?? quoteResponse.Descendants().FirstOrDefault(e => e.Name.LocalName == "QuoteNumber")?.Value
                ?? string.Empty;
 ```
 
@@ -1105,7 +1087,7 @@ var quoteNumber = quoteResponse.Element(legacyNs + "QuoteNumber")?.Value
 O frontend obtém a URL do gateway através do service discovery do Aspire:
 
 ```csharp
-_gatewayUrl = _configuration["services__gateway__http__0"] 
+_gatewayUrl = _configuration["services__gateway__http__0"]
            ?? Environment.GetEnvironmentVariable("services__gateway__http__0")
            ?? "http://localhost:15100"; // Fallback para porta fixa
 ```
@@ -1138,7 +1120,7 @@ Todos os clientes implementam tratamento robusto de erros:
 if (!response.IsSuccessStatusCode)
 {
     var errorContent = await response.Content.ReadAsStringAsync();
-    _logger.LogError("SOAP request failed with status {StatusCode}. Response: {Response}", 
+    _logger.LogError("SOAP request failed with status {StatusCode}. Response: {Response}",
         response.StatusCode, errorContent);
     response.EnsureSuccessStatusCode();
 }
@@ -1158,6 +1140,7 @@ if (!response.IsSuccessStatusCode)
 - [YARP Documentation](https://microsoft.github.io/reverse-proxy/)
 - [Entity Framework Core](https://learn.microsoft.com/ef/core/)
 - [SQLite Documentation](https://www.sqlite.org/docs.html)
+- [OpenTelemetry .NET](https://opentelemetry.io/docs/languages/dotnet/)
 
 ---
 
@@ -1167,8 +1150,7 @@ Esta arquitetura foi projetada para:
 
 1. **Reduzir fricção**: Funciona em qualquer plataforma, sem dependências pesadas
 2. **Facilitar aprendizado**: Estrutura clara, código comentado, exemplos práticos
-3. **Demonstrar modernização**: Mostra evolução de legado para moderno
-4. **Suportar treinamento**: Múltiplos demos, dados consistentes, falhas controláveis
+3. **Demonstrar observabilidade**: Tracing distribuído completo com OpenTelemetry, desde a requisição HTTP ate a operação no banco de dados
+4. **Suportar treinamento**: Dados consistentes, falhas controláveis, telemetria profunda
 
-A arquitetura evolui gradualmente através dos três demos, demonstrando padrões e técnicas de modernização de sistemas legados.
-
+A arquitetura combina serviços Legacy com observabilidade moderna, demonstrando como instrumentar e monitorar sistemas legados de forma eficaz.

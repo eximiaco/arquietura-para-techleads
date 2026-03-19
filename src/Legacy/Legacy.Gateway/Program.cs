@@ -61,7 +61,7 @@ var policyServiceUrl = GetServiceUrl("policy-service");
 var claimsServiceUrl = GetServiceUrl("claims-service");
 var pricingRulesServiceUrl = GetServiceUrl("pricing-rules-service");
 
-// Configurar YARP usando configuração em memória (igual ao Modern.Gateway, mas dinâmico)
+// Configurar YARP usando configuração em memória (dinâmico via variáveis do Aspire)
 var configDict = new Dictionary<string, string?>
 {
     ["ReverseProxy:Routes:quote-service:ClusterId"] = "quote-service-cluster",
