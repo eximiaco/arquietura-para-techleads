@@ -488,3 +488,27 @@ curl http://localhost:15100/api/policies/customer/999
 curl http://localhost:15100/api/policies/AUTO-1234
 curl http://localhost:15100/api/claims/policy/AUTO-1234
 ```
+
+### 3. CDC (Change Data Capture)
+
+Captura de mudanças no banco de dados em tempo real via PostgreSQL `LISTEN/NOTIFY`. O `CdcWorker` escuta alterações nas tabelas Quotes, Policies e Claims, e emite spans no tracing para cada evento.
+
+**Como funciona:**
+
+1. Triggers PostgreSQL são criados automaticamente no startup (`cdc_notify_change`)
+2. A cada INSERT/UPDATE/DELETE nas tabelas monitoradas, o trigger executa `pg_notify('cdc_events', payload)`
+3. O `CdcWorker` escuta o canal `cdc_events` via `LISTEN`
+4. Cada evento gera um span `CDC {OPERATION} {TABLE}` no tracing
+
+**Tabelas monitoradas:** Quotes, Policies, Claims
+
+**No Dashboard:** ao criar/aprovar uma cotação, o span CDC aparece como:
+```
+cdc-worker: CDC INSERT quotes
+  cdc.operation = INSERT
+  cdc.table = quotes
+  cdc.timestamp = 2026-03-19T...
+  cdc.payload = {"operation":"INSERT","table":"quotes","data":{...}}
+```
+
+**Simulação do mundo real:** este padrão simula como Debezium/Kafka Connect capturariam mudanças do banco legado para alimentar sistemas downstream (analytics, cache, event store) sem acoplar ao código da aplicação.

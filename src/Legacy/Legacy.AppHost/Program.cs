@@ -67,6 +67,10 @@ var modernApi = builder.AddProject<Projects.Modern_Api>("modern-api")
     .WithHttpEndpoint()
     .WithReference(legacyDb);
 
+// CDC Worker — escuta mudanças no banco via PostgreSQL LISTEN/NOTIFY
+var cdcWorker = builder.AddProject<Projects.Modern_CdcWorker>("cdc-worker")
+    .WithReference(legacyDb);
+
 // Worker de telemetria de banco - lê db_operation_logs e exporta spans via OTLP
 var dbTelemetryWorker = builder.AddProject<Projects.Legacy_DbTelemetryWorker>("db-telemetry-worker")
     .WithReference(legacyDb);
