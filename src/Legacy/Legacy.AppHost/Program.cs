@@ -88,7 +88,8 @@ var gateway = builder.AddProject<Projects.Legacy_Gateway>("gateway")
     .WithReference(claimsService)
     .WithReference(pricingRulesService)
     .WithReference(modernApi)
-    .WithReference(frontend);
+    .WithReference(frontend)
+    .WithEnvironment("ROUTING_MODE", builder.Configuration["ROUTING_MODE"] ?? "blue");
 
 // Injeta URL do gateway no frontend para os SOAP clients
 frontend.WithReference(gateway);

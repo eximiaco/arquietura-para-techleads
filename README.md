@@ -512,3 +512,29 @@ cdc-worker: CDC INSERT quotes
 ```
 
 **Simulação do mundo real:** este padrão simula como Debezium/Kafka Connect capturariam mudanças do banco legado para alimentar sistemas downstream (analytics, cache, event store) sem acoplar ao código da aplicação.
+
+### 4. Blue/Green Deployment via Gateway
+
+O Gateway usa a variável `ROUTING_MODE` para alternar o roteamento de cotações entre o legado SOAP (blue) e o Modern.Api REST (green).
+
+**Configuração:**
+
+| ROUTING_MODE | Cotações roteadas para | Outros serviços |
+|-------------|----------------------|-----------------|
+| `blue` (default) | Legacy QuoteService SOAP | Sem alteração |
+| `green` | Modern.Api REST | Sem alteração |
+
+**Como usar:**
+```bash
+# Blue (padrão) — cotações no legado SOAP
+cd src/Legacy/Legacy.AppHost
+dotnet run
+
+# Green — cotações no Modern.Api REST
+export ROUTING_MODE=green
+dotnet run
+```
+
+**No Dashboard:** ao alternar para `green`, os traces de cotações mostram `modern-api` como destino em vez de `quote-service`, permitindo comparar latência e comportamento.
+
+**Rollback instantâneo:** basta remover `ROUTING_MODE=green` e reiniciar. O legado continua funcionando sem alterações.

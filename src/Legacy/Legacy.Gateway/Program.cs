@@ -69,6 +69,14 @@ var frontendUrl = GetServiceUrl("frontend");
 
 // Configurar YARP com rotas nomeadas para rastreabilidade no tracing
 // O nome da rota (key) aparece nos spans do OpenTelemetry
+// Blue/Green: ROUTING_MODE controla para onde as cotações SOAP são roteadas
+// "blue" (default) = Legacy SOAP, "green" = Modern.Api REST
+var routingMode = Environment.GetEnvironmentVariable("ROUTING_MODE") ?? "blue";
+Console.WriteLine($"[Gateway] Routing mode: {routingMode} (blue=Legacy SOAP, green=Modern.Api REST)");
+
+// Se green, cotações SOAP são redirecionadas para o Modern.Api
+var quoteCluster = routingMode == "green" ? "modern-api-cluster" : "quote-service-cluster";
+
 var configDict = new Dictionary<string, string?>
 {
     // Rota REST moderna (Strangler Fig) — /api/* vai para Modern.Api
@@ -76,8 +84,8 @@ var configDict = new Dictionary<string, string?>
     ["ReverseProxy:Routes:modern-api:Match:Path"] = "/api/{**remainder}",
     ["ReverseProxy:Routes:modern-api:Order"] = "0",
 
-    // Rotas SOAP - prioritárias (Order menor = maior prioridade)
-    ["ReverseProxy:Routes:quote-service:ClusterId"] = "quote-service-cluster",
+    // Rotas SOAP — Blue/Green: cotações podem ir para Legacy ou Modern
+    ["ReverseProxy:Routes:quote-service:ClusterId"] = quoteCluster,
     ["ReverseProxy:Routes:quote-service:Match:Path"] = "/QuoteService.svc/{**remainder}",
     ["ReverseProxy:Routes:quote-service:Order"] = "1",
 
