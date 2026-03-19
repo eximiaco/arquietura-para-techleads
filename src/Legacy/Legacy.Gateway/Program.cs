@@ -84,17 +84,9 @@ app.MapGet("/gateway/status", () => Results.Ok(new
 {
     routingMode,
     description = routingMode == "green"
-        ? "Cotações roteadas para Modern.Api REST"
-        : "Cotações roteadas para Legacy QuoteService SOAP",
-    routes = new
-    {
-        quotes_soap = routingMode == "green" ? "modern-api" : "quote-service",
-        api = "modern-api",
-        pricing = "pricing-service-modern",
-        policies_soap = "policy-service",
-        claims_soap = "claims-service",
-        pricing_rules_soap = "pricing-rules-service"
-    }
+        ? "GREEN: SOAP legado + REST moderno (/api/* ativo)"
+        : "BLUE: Somente SOAP legado (/api/* desativado)",
+    restActive = routingMode == "green"
 }));
 
 // Endpoint para alternar Blue/Green em runtime
@@ -111,7 +103,7 @@ app.MapPost("/gateway/routing/{mode}", (string mode) =>
     {
         routingMode,
         message = $"Routing switched to {routingMode}",
-        quotes_target = routingMode == "green" ? "Modern.Api REST" : "Legacy QuoteService SOAP"
+        quotes_target = routingMode == "green" ? "GREEN: SOAP + REST moderno" : "BLUE: Somente SOAP legado"
     });
 });
 
@@ -124,25 +116,37 @@ app.Run();
 
 IReadOnlyList<RouteConfig> BuildRoutes(string mode)
 {
-    var quoteCluster = mode == "green" ? "modern-api-cluster" : "quote-service-cluster";
+    // Blue/Green controla se as rotas REST modernas estão ativas
+    // BLUE:  só SOAP legado (rotas /api/* não existem — caem no frontend catch-all)
+    // GREEN: SOAP legado + REST moderno (/api/* ativo)
+    // SOAP sempre vai para o legado — nunca redireciona SOAP para Modern.Api
 
-    return new[]
+    var routes = new List<RouteConfig>();
+
+    if (mode == "green")
     {
-        new RouteConfig { RouteId = "modern-api", ClusterId = "modern-api-cluster", Order = 0,
-            Match = new RouteMatch { Path = "/api/{**remainder}" } },
-        new RouteConfig { RouteId = "pricing-service", ClusterId = "pricing-service-cluster", Order = 0,
-            Match = new RouteMatch { Path = "/api/pricing/{**remainder}" } },
-        new RouteConfig { RouteId = "quote-service", ClusterId = quoteCluster, Order = 1,
-            Match = new RouteMatch { Path = "/QuoteService.svc/{**remainder}" } },
-        new RouteConfig { RouteId = "policy-service", ClusterId = "policy-service-cluster", Order = 1,
-            Match = new RouteMatch { Path = "/PolicyService.svc/{**remainder}" } },
-        new RouteConfig { RouteId = "claims-service", ClusterId = "claims-service-cluster", Order = 1,
-            Match = new RouteMatch { Path = "/ClaimsService.svc/{**remainder}" } },
-        new RouteConfig { RouteId = "pricing-rules-service", ClusterId = "pricing-rules-service-cluster", Order = 1,
-            Match = new RouteMatch { Path = "/PricingRulesService.svc/{**remainder}" } },
-        new RouteConfig { RouteId = "frontend", ClusterId = "frontend-cluster", Order = 100,
-            Match = new RouteMatch { Path = "/{**remainder}" } }
-    };
+        // GREEN: rotas REST modernas ativas
+        routes.Add(new RouteConfig { RouteId = "modern-api", ClusterId = "modern-api-cluster", Order = 0,
+            Match = new RouteMatch { Path = "/api/{**remainder}" } });
+        routes.Add(new RouteConfig { RouteId = "pricing-service", ClusterId = "pricing-service-cluster", Order = 0,
+            Match = new RouteMatch { Path = "/api/pricing/{**remainder}" } });
+    }
+
+    // SOAP — sempre ativo (legado)
+    routes.Add(new RouteConfig { RouteId = "quote-service", ClusterId = "quote-service-cluster", Order = 1,
+        Match = new RouteMatch { Path = "/QuoteService.svc/{**remainder}" } });
+    routes.Add(new RouteConfig { RouteId = "policy-service", ClusterId = "policy-service-cluster", Order = 1,
+        Match = new RouteMatch { Path = "/PolicyService.svc/{**remainder}" } });
+    routes.Add(new RouteConfig { RouteId = "claims-service", ClusterId = "claims-service-cluster", Order = 1,
+        Match = new RouteMatch { Path = "/ClaimsService.svc/{**remainder}" } });
+    routes.Add(new RouteConfig { RouteId = "pricing-rules-service", ClusterId = "pricing-rules-service-cluster", Order = 1,
+        Match = new RouteMatch { Path = "/PricingRulesService.svc/{**remainder}" } });
+
+    // Frontend catch-all
+    routes.Add(new RouteConfig { RouteId = "frontend", ClusterId = "frontend-cluster", Order = 100,
+        Match = new RouteMatch { Path = "/{**remainder}" } });
+
+    return routes;
 }
 
 IReadOnlyList<ClusterConfig> BuildClusters()

@@ -69,8 +69,8 @@
                 </span>
             </div>
             <div class="card-body">
-                <p>Alterna cotações entre Legacy SOAP e Modern.Api REST <strong>sem reiniciar</strong>.</p>
-                <p>Status atual: <strong>@(isGreen ? "GREEN — Cotações via Modern.Api REST" : "BLUE — Cotações via Legacy SOAP")</strong></p>
+                <p>Alterna entre SOAP-only (blue) e SOAP + REST moderno (green) <strong>sem reiniciar</strong>.</p>
+                <p>Status atual: <strong>@(isGreen ? "GREEN — SOAP legado + REST moderno (/api/* ativo)" : "BLUE — Somente SOAP legado (/api/* desativado)")</strong></p>
                 <div class="d-flex gap-2">
                     <form asp-action="SwitchRouting" method="post" class="d-inline">
                         <input type="hidden" name="mode" value="blue" />
