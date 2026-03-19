@@ -21,7 +21,9 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECU
 var builder = DistributedApplication.CreateBuilder(args);
 
 // PostgreSQL gerenciado pelo Aspire - sobe container automaticamente
-var postgres = builder.AddPostgres("postgres")
+// Senha fixa para evitar conflito com volume persistido entre execuções
+var postgresPassword = builder.AddParameter("postgres-password", secret: true, value: "workshop2026");
+var postgres = builder.AddPostgres("postgres", password: postgresPassword)
     .WithDataVolume();
 var legacyDb = postgres.AddDatabase("legacydb");
 
