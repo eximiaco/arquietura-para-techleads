@@ -64,12 +64,18 @@ var quoteServiceUrl = GetServiceUrl("quote-service");
 var policyServiceUrl = GetServiceUrl("policy-service");
 var claimsServiceUrl = GetServiceUrl("claims-service");
 var pricingRulesServiceUrl = GetServiceUrl("pricing-rules-service");
+var modernApiUrl = GetServiceUrl("modern-api");
 var frontendUrl = GetServiceUrl("frontend");
 
 // Configurar YARP com rotas nomeadas para rastreabilidade no tracing
 // O nome da rota (key) aparece nos spans do OpenTelemetry
 var configDict = new Dictionary<string, string?>
 {
+    // Rota REST moderna (Strangler Fig) — /api/* vai para Modern.Api
+    ["ReverseProxy:Routes:modern-api:ClusterId"] = "modern-api-cluster",
+    ["ReverseProxy:Routes:modern-api:Match:Path"] = "/api/{**remainder}",
+    ["ReverseProxy:Routes:modern-api:Order"] = "0",
+
     // Rotas SOAP - prioritárias (Order menor = maior prioridade)
     ["ReverseProxy:Routes:quote-service:ClusterId"] = "quote-service-cluster",
     ["ReverseProxy:Routes:quote-service:Match:Path"] = "/QuoteService.svc/{**remainder}",
@@ -93,6 +99,7 @@ var configDict = new Dictionary<string, string?>
     ["ReverseProxy:Routes:frontend:Order"] = "100",
 
     // Clusters (destinos)
+    ["ReverseProxy:Clusters:modern-api-cluster:Destinations:destination1:Address"] = modernApiUrl,
     ["ReverseProxy:Clusters:quote-service-cluster:Destinations:destination1:Address"] = quoteServiceUrl,
     ["ReverseProxy:Clusters:policy-service-cluster:Destinations:destination1:Address"] = policyServiceUrl,
     ["ReverseProxy:Clusters:claims-service-cluster:Destinations:destination1:Address"] = claimsServiceUrl,

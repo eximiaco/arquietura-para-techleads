@@ -62,6 +62,11 @@ var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
     .WithEnvironment("FAULT_DELAY_MS", builder.Configuration["FAULT_DELAY_MS"] ?? "300");
 
+// Modern.Api (REST) — Strangler Fig: substitui gradualmente os endpoints SOAP
+var modernApi = builder.AddProject<Projects.Modern_Api>("modern-api")
+    .WithHttpEndpoint()
+    .WithReference(legacyDb);
+
 // Worker de telemetria de banco - lê db_operation_logs e exporta spans via OTLP
 var dbTelemetryWorker = builder.AddProject<Projects.Legacy_DbTelemetryWorker>("db-telemetry-worker")
     .WithReference(legacyDb);
@@ -78,6 +83,7 @@ var gateway = builder.AddProject<Projects.Legacy_Gateway>("gateway")
     .WithReference(policyService)
     .WithReference(claimsService)
     .WithReference(pricingRulesService)
+    .WithReference(modernApi)
     .WithReference(frontend);
 
 // Injeta URL do gateway no frontend para os SOAP clients

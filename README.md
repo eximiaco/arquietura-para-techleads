@@ -358,6 +358,7 @@ dotnet run
 - PolicyService (CoreWCF) - porta dinâmica
 - ClaimsService (CoreWCF) - porta dinâmica
 - PricingRulesService (CoreWCF) - porta dinâmica
+- Modern.Api (REST) - porta dinâmica
 - Gateway YARP - **porta fixa 15100**
 - Frontend MVC - porta dinâmica
 - DbTelemetryWorker - background service
@@ -367,6 +368,7 @@ dotnet run
 - Dashboard Aspire: http://localhost:15000
 - Frontend MVC: http://localhost:15100
 - Endpoints SOAP: http://localhost:15100/QuoteService.svc
+- API REST moderna: http://localhost:15100/api/quotes/customer/999
 
 ---
 
@@ -412,3 +414,43 @@ O CorrelationId permite:
 2. **Ver o Trace Detail** — waterfall com todos os spans do fluxo completo
 3. **Identificar onde o erro ocorreu** — spans vermelhos indicam a origem
 4. **Compartilhar com a equipe** — o ID identifica univocamente a operação que falhou
+
+---
+
+## Padrões de Estrangulamento de Legado
+
+### 1. Strangler Fig Pattern
+
+O padrão clássico de migração incremental. O `Modern.Api` (REST) coexiste com os serviços SOAP legados. O Gateway roteia gradualmente endpoints para o serviço moderno.
+
+**Roteamento no Gateway:**
+
+```
+/api/quotes/*              → Modern.Api (REST)     ← NOVO
+/QuoteService.svc/*        → Legacy QuoteService   ← LEGADO (ainda funciona)
+/PolicyService.svc/*       → Legacy PolicyService
+/ClaimsService.svc/*       → Legacy ClaimsService
+/PricingRulesService.svc/* → Legacy PricingRulesService
+/*                         → Frontend MVC
+```
+
+**Endpoints REST disponíveis:**
+
+| Método | Endpoint | Descrição | Substitui |
+|--------|----------|-----------|-----------|
+| GET | `/api/quotes/customer/{id}` | Listar cotações por cliente | GetQuotesByCustomer (SOAP) |
+| GET | `/api/quotes/{quoteNumber}` | Consultar cotação individual | Não existia no SOAP |
+
+**Testar:**
+```bash
+# REST moderno (via gateway)
+curl http://localhost:15100/api/quotes/customer/999
+
+# SOAP legado (ainda funciona em paralelo)
+curl -X POST http://localhost:15100/QuoteService.svc \
+  -H "Content-Type: text/xml" \
+  -H "SOAPAction: http://eximia.co/seguroauto/legacy/IQuoteService/GetQuotesByCustomer" \
+  -d '...'
+```
+
+**No Dashboard:** os traces mostram claramente qual caminho foi usado — Modern.Api ou QuoteService SOAP — permitindo comparar performance e comportamento lado a lado.
