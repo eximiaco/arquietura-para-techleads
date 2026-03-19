@@ -115,6 +115,7 @@ public class PolicyServiceClient : IPolicyServiceClient
         activity?.SetTag("rpc.service", endpoint);
         activity?.SetTag("rpc.method", soapAction);
         activity?.SetTag("server.address", _gatewayUrl);
+        activity?.SetTag("soap.request.envelope", soapEnvelope);
 
         try
         {
@@ -136,7 +137,11 @@ public class PolicyServiceClient : IPolicyServiceClient
                 response.EnsureSuccessStatusCode();
             }
 
-            return await response.Content.ReadAsStringAsync();
+            var responseContent = await response.Content.ReadAsStringAsync();
+            activity?.SetTag("soap.response.envelope", responseContent.Length > 2000
+                ? responseContent.Substring(0, 2000) + "..."
+                : responseContent);
+            return responseContent;
         }
         catch (Exception ex)
         {

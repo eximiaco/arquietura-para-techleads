@@ -156,6 +156,7 @@ public class QuoteServiceClient : IQuoteServiceClient
         activity?.SetTag("rpc.service", endpoint);
         activity?.SetTag("rpc.method", soapAction);
         activity?.SetTag("server.address", _gatewayUrl);
+        activity?.SetTag("soap.request.envelope", soapEnvelope);
 
         try
         {
@@ -208,6 +209,10 @@ public class QuoteServiceClient : IQuoteServiceClient
             }
 
             var responseContent = await response.Content.ReadAsStringAsync();
+
+            activity?.SetTag("soap.response.envelope", responseContent.Length > 2000
+                ? responseContent.Substring(0, 2000) + "..."
+                : responseContent);
 
             // Log completo da resposta para diagnóstico (limitado a 1000 caracteres)
             var logContent = responseContent.Length > 1000
