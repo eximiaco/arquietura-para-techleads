@@ -1,24 +1,28 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Modern.Api.AntiCorruption;
 using SeguroAuto.Data;
 using SeguroAuto.Domain;
 
 namespace Modern.Api.Controllers;
 
 /// <summary>
-/// API REST moderna para cotações — substitui gradualmente o QuoteService SOAP.
-/// Strangler Fig Pattern: leituras migradas para REST, escritas ainda no legado SOAP.
+/// API REST moderna para cotações.
+/// - Queries (GET): acesso direto ao banco (CQRS)
+/// - Commands (POST): via Anti-Corruption Layer → Legacy SOAP (ACL)
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class QuotesController : ControllerBase
 {
     private readonly SeguroAutoDbContext _context;
+    private readonly LegacyQuoteAdapter _legacyAdapter;
     private readonly ILogger<QuotesController> _logger;
 
-    public QuotesController(SeguroAutoDbContext context, ILogger<QuotesController> logger)
+    public QuotesController(SeguroAutoDbContext context, LegacyQuoteAdapter legacyAdapter, ILogger<QuotesController> logger)
     {
         _context = context;
+        _legacyAdapter = legacyAdapter;
         _logger = logger;
     }
 
@@ -83,6 +87,28 @@ public class QuotesController : ControllerBase
             return NotFound(new { error = "Quote not found", quoteNumber });
 
         return Ok(quote);
+    }
+
+    /// <summary>
+    /// POST /api/quotes
+    /// Cria cotação via Anti-Corruption Layer → delega ao Legacy SOAP QuoteService.
+    /// O Modern.Api NÃO conhece SOAP — o ACL faz a tradução.
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateQuoteCommand command)
+    {
+        _logger.LogInformation("[Modern.Api] Create quote via ACL for CustomerId: {CustomerId}", command.CustomerId);
+
+        try
+        {
+            var result = await _legacyAdapter.CreateQuoteAsync(command);
+            return Created($"/api/quotes/{result.QuoteNumber}", result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[Modern.Api] Error creating quote via ACL");
+            return StatusCode(500, new { error = ex.Message });
+        }
     }
 }
 

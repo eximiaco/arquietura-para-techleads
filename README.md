@@ -538,3 +538,34 @@ dotnet run
 **No Dashboard:** ao alternar para `green`, os traces de cotações mostram `modern-api` como destino em vez de `quote-service`, permitindo comparar latência e comportamento.
 
 **Rollback instantâneo:** basta remover `ROUTING_MODE=green` e reiniciar. O legado continua funcionando sem alterações.
+
+### 5. Anti-Corruption Layer (ACL)
+
+Camada de tradução entre o modelo moderno (REST/JSON) e o legado (SOAP/XML). O `Modern.Api` NÃO depende dos contratos WCF — o `LegacyQuoteAdapter` faz a tradução.
+
+**Fluxo:**
+```
+POST /api/quotes (JSON)
+  └── Modern.Api QuotesController
+        └── LegacyQuoteAdapter (ACL)
+              ├── Traduz JSON → SOAP/XML envelope
+              ├── Chama Legacy QuoteService via HTTP POST
+              ├── Traduz SOAP/XML response → JSON
+              └── Span: "ACL TranslateToSOAP" com tags:
+                    acl.direction = modern_to_legacy
+                    acl.operation = CreateQuote
+                    acl.legacy_protocol = SOAP/XML
+```
+
+**Testar:**
+```bash
+curl -X POST http://localhost:15100/api/quotes \
+  -H "Content-Type: application/json" \
+  -d '{"customerId":999,"vehiclePlate":"ABC-1234","vehicleModel":"Honda Civic","vehicleYear":2022}'
+```
+
+**Benefícios demonstrados:**
+- Modern.Api fala JSON — não conhece SOAP
+- O adapter isola toda a complexidade de tradução XML
+- Se o legado for substituído no futuro, só o adapter muda
+- No tracing, o span ACL mostra claramente a tradução entre protocolos

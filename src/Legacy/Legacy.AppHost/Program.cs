@@ -65,7 +65,8 @@ var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService
 // Modern.Api (REST) — Strangler Fig: substitui gradualmente os endpoints SOAP
 var modernApi = builder.AddProject<Projects.Modern_Api>("modern-api")
     .WithHttpEndpoint()
-    .WithReference(legacyDb);
+    .WithReference(legacyDb)
+    .WithReference(quoteService);
 
 // CDC Worker — escuta mudanças no banco via PostgreSQL LISTEN/NOTIFY
 var cdcWorker = builder.AddProject<Projects.Modern_CdcWorker>("cdc-worker")
