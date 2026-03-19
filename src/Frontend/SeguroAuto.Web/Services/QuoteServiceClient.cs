@@ -227,6 +227,7 @@ public class QuoteServiceClient : IQuoteServiceClient
         catch (HttpRequestException ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            RecordException(activity, ex);
 
             _logger.LogError(ex, "HTTP error when calling SOAP endpoint {Endpoint}", endpoint);
             throw new InvalidOperationException($"Failed to call SOAP service at {_gatewayUrl}{endpoint}. Check if the gateway is running and accessible.", ex);
@@ -234,6 +235,7 @@ public class QuoteServiceClient : IQuoteServiceClient
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            RecordException(activity, ex);
 
             _logger.LogError(ex, "Unexpected error when calling SOAP endpoint {Endpoint}", endpoint);
             throw;
@@ -406,6 +408,20 @@ public class QuoteServiceClient : IQuoteServiceClient
                    .Replace(">", "&gt;")
                    .Replace("\"", "&quot;")
                    .Replace("'", "&apos;");
+    }
+
+    /// <summary>
+    /// Grava a exception como Event no span (padrão OTel sem dependência do pacote OpenTelemetry.Api).
+    /// Aparece como "exception" event no Dashboard com type, message e stacktrace.
+    /// </summary>
+    private static void RecordException(Activity? activity, Exception ex)
+    {
+        activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+        {
+            { "exception.type", ex.GetType().FullName ?? ex.GetType().Name },
+            { "exception.message", ex.Message },
+            { "exception.stacktrace", ex.ToString() }
+        }));
     }
 }
 

@@ -141,6 +141,12 @@ public class PricingRulesServiceClient : IPricingRulesServiceClient
         catch (Exception ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.AddEvent(new ActivityEvent("exception", tags: new ActivityTagsCollection
+            {
+                { "exception.type", ex.GetType().FullName ?? ex.GetType().Name },
+                { "exception.message", ex.Message },
+                { "exception.stacktrace", ex.ToString() }
+            }));
 
             _logger.LogError(ex, "Unexpected error when calling SOAP endpoint {Endpoint}", endpoint);
             throw;

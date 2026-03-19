@@ -1,9 +1,11 @@
+using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace SeguroAuto.ServiceDefaults;
@@ -12,17 +14,37 @@ public static class Extensions
 {
     /// <summary>
     /// Configura OpenTelemetry (tracing + metrics) com exportação OTLP para o Aspire Dashboard.
-    /// O Aspire injeta automaticamente nos processos filhos:
-    ///   - OTEL_EXPORTER_OTLP_ENDPOINT (endpoint OTLP do dashboard)
-    ///   - OTEL_SERVICE_NAME (nome do recurso no Aspire, ex: "quote-service")
-    ///   - OTEL_RESOURCE_ATTRIBUTES (atributos adicionais do recurso)
-    /// NÃO usar AddService() explicitamente para não sobrescrever esses valores.
+    /// Inclui Resource Detectors para informações de container, host e processo.
     /// </summary>
     public static IServiceCollection AddServiceDefaults(this WebApplicationBuilder builder)
     {
         builder.Services.AddHealthChecks();
 
         builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource =>
+            {
+                // Informações do host e processo (aparecem em todos os spans do serviço)
+                var attributes = new List<KeyValuePair<string, object>>
+                {
+                    new("host.name", Environment.MachineName),
+                    new("os.description", RuntimeInformation.OSDescription),
+                    new("os.type", OperatingSystem.IsLinux() ? "linux" :
+                                   OperatingSystem.IsWindows() ? "windows" :
+                                   OperatingSystem.IsMacOS() ? "darwin" : "unknown"),
+                    new("process.pid", Environment.ProcessId),
+                    new("process.runtime.name", RuntimeInformation.FrameworkDescription),
+                    new("process.runtime.version", Environment.Version.ToString())
+                };
+
+                // Container ID — lê de /proc/self/cgroup (disponível em containers Linux)
+                var containerId = GetContainerId();
+                if (!string.IsNullOrEmpty(containerId))
+                {
+                    attributes.Add(new("container.id", containerId));
+                }
+
+                resource.AddAttributes(attributes);
+            })
             .WithTracing(tracing =>
             {
                 tracing
@@ -49,6 +71,34 @@ public static class Extensions
             .UseOtlpExporter();
 
         return builder.Services;
+    }
+
+    /// <summary>
+    /// Tenta ler o container ID de /proc/self/cgroup (Linux containers).
+    /// </summary>
+    private static string? GetContainerId()
+    {
+        if (!OperatingSystem.IsLinux()) return null;
+
+        try
+        {
+            // Formato cgroup v2: "0::/docker/{containerId}"
+            // Formato cgroup v1: "12:memory:/docker/{containerId}"
+            var cgroupPath = "/proc/self/cgroup";
+            if (!File.Exists(cgroupPath)) return null;
+
+            foreach (var line in File.ReadLines(cgroupPath))
+            {
+                var parts = line.Split('/');
+                if (parts.Length >= 3 && parts[^1].Length >= 12)
+                {
+                    return parts[^1]; // último segmento é o container ID
+                }
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     /// <summary>
