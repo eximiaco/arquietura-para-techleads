@@ -65,6 +65,7 @@ var policyServiceUrl = GetServiceUrl("policy-service");
 var claimsServiceUrl = GetServiceUrl("claims-service");
 var pricingRulesServiceUrl = GetServiceUrl("pricing-rules-service");
 var modernApiUrl = GetServiceUrl("modern-api");
+var pricingServiceUrl = GetServiceUrl("pricing-service-modern");
 var frontendUrl = GetServiceUrl("frontend");
 
 // Configurar YARP com rotas nomeadas para rastreabilidade no tracing
@@ -83,6 +84,11 @@ var configDict = new Dictionary<string, string?>
     ["ReverseProxy:Routes:modern-api:ClusterId"] = "modern-api-cluster",
     ["ReverseProxy:Routes:modern-api:Match:Path"] = "/api/{**remainder}",
     ["ReverseProxy:Routes:modern-api:Order"] = "0",
+
+    // Rota para microsserviço de pricing (Decomposition Pattern)
+    ["ReverseProxy:Routes:pricing-service:ClusterId"] = "pricing-service-cluster",
+    ["ReverseProxy:Routes:pricing-service:Match:Path"] = "/api/pricing/{**remainder}",
+    ["ReverseProxy:Routes:pricing-service:Order"] = "0",
 
     // Rotas SOAP — Blue/Green: cotações podem ir para Legacy ou Modern
     ["ReverseProxy:Routes:quote-service:ClusterId"] = quoteCluster,
@@ -107,6 +113,7 @@ var configDict = new Dictionary<string, string?>
     ["ReverseProxy:Routes:frontend:Order"] = "100",
 
     // Clusters (destinos)
+    ["ReverseProxy:Clusters:pricing-service-cluster:Destinations:destination1:Address"] = pricingServiceUrl,
     ["ReverseProxy:Clusters:modern-api-cluster:Destinations:destination1:Address"] = modernApiUrl,
     ["ReverseProxy:Clusters:quote-service-cluster:Destinations:destination1:Address"] = quoteServiceUrl,
     ["ReverseProxy:Clusters:policy-service-cluster:Destinations:destination1:Address"] = policyServiceUrl,

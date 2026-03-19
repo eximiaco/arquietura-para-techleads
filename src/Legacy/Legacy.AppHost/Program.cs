@@ -68,6 +68,11 @@ var modernApi = builder.AddProject<Projects.Modern_Api>("modern-api")
     .WithReference(legacyDb)
     .WithReference(quoteService);
 
+// Modern.PricingService — microsserviço extraído do monólito (Proxy/Decomposition)
+var pricingService = builder.AddProject<Projects.Modern_PricingService>("pricing-service-modern")
+    .WithHttpEndpoint()
+    .WithReference(legacyDb);
+
 // CDC Worker — escuta mudanças no banco via PostgreSQL LISTEN/NOTIFY
 var cdcWorker = builder.AddProject<Projects.Modern_CdcWorker>("cdc-worker")
     .WithReference(legacyDb);
@@ -89,6 +94,7 @@ var gateway = builder.AddProject<Projects.Legacy_Gateway>("gateway")
     .WithReference(claimsService)
     .WithReference(pricingRulesService)
     .WithReference(modernApi)
+    .WithReference(pricingService)
     .WithReference(frontend)
     .WithEnvironment("ROUTING_MODE", builder.Configuration["ROUTING_MODE"] ?? "blue");
 

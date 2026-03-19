@@ -569,3 +569,45 @@ curl -X POST http://localhost:15100/api/quotes \
 - O adapter isola toda a complexidade de tradução XML
 - Se o legado for substituído no futuro, só o adapter muda
 - No tracing, o span ACL mostra claramente a tradução entre protocolos
+
+### 6. Proxy Pattern (Decomposition)
+
+Extração de funcionalidade do monólito para microsserviço independente. O `Modern.PricingService` é um serviço REST extraído do `Legacy.PricingRulesService` SOAP, com endpoints Minimal API.
+
+**Serviços antes e depois:**
+
+```
+ANTES (monólito):
+  Legacy.PricingRulesService (SOAP) → GetAllRules, GetRule, UpdateRule
+
+DEPOIS (decomposto):
+  Legacy.PricingRulesService (SOAP)    → UpdateRule (escrita - ainda no legado)
+  Modern.PricingService (REST)         → GET /api/pricing/rules (leitura)
+                                       → GET /api/pricing/rules/active
+                                       → GET /api/pricing/calculate?vehicleYear=2022&customerId=999
+```
+
+**Testar:**
+```bash
+# Todas as regras
+curl http://localhost:15100/api/pricing/rules
+
+# Regras ativas
+curl http://localhost:15100/api/pricing/rules/active
+
+# Calcular prêmio (lógica extraída do monólito)
+curl "http://localhost:15100/api/pricing/calculate?vehicleYear=2022&customerId=999"
+```
+
+**Resposta do cálculo:**
+```json
+{
+  "basePremium": 1200.00,
+  "finalPremium": 1080.00,
+  "appliedRules": [{"name": "Veículo Novo", "multiplier": 0.9}],
+  "vehicleYear": 2022,
+  "customerId": 999
+}
+```
+
+**No Dashboard:** `pricing-service-modern` aparece como recurso separado com seus próprios spans, demonstrando a decomposição do monólito em serviços independentes.
