@@ -42,6 +42,7 @@ app.UseRouting();
 
 app.UseAuthorization();
 
+app.MapControllers(); // API controllers com attribute routing (ex: TelemetryController)
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
