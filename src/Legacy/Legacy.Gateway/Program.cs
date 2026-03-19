@@ -1,13 +1,12 @@
+using System.Text.Json;
 using OpenTelemetry.Trace;
 using SeguroAuto.ServiceDefaults;
+using Yarp.ReverseProxy.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// OpenTelemetry: tracing distribuído + metrics exportados via OTLP para o Aspire Dashboard
 builder.AddServiceDefaults();
 
-// Gateway: mostra o path real no span (ex: "GET /QuoteService.svc")
-// em vez do route template YARP (ex: "GET /{**remainder}")
 builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
 {
     tracing.AddAspNetCoreInstrumentation(options =>
@@ -19,8 +18,7 @@ builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
     });
 });
 
-// Função auxiliar para obter URL do serviço via service discovery do Aspire
-// O Aspire injeta variáveis no formato: services__{service-name}__{endpoint-name}__{index}
+// Service discovery
 string GetServiceUrl(string serviceName, string endpointName = "http")
 {
     var envVarName = $"services__{serviceName}__{endpointName}__0";
@@ -32,12 +30,9 @@ string GetServiceUrl(string serviceName, string endpointName = "http")
             .Cast<System.Collections.DictionaryEntry>()
             .ToDictionary(e => e.Key?.ToString() ?? "", e => e.Value?.ToString() ?? "");
 
-        var relatedVars = allEnvVars
+        var possibleUrl = allEnvVars
             .Where(e => e.Key.Contains(serviceName, StringComparison.OrdinalIgnoreCase))
             .Select(e => $"{e.Key}={e.Value}")
-            .ToList();
-
-        var possibleUrl = relatedVars
             .FirstOrDefault(v => v.Contains("http://", StringComparison.OrdinalIgnoreCase) ||
                                  v.Contains("https://", StringComparison.OrdinalIgnoreCase));
 
@@ -52,8 +47,7 @@ string GetServiceUrl(string serviceName, string endpointName = "http")
         }
 
         throw new InvalidOperationException(
-            $"Environment variable '{envVarName}' not found for service '{serviceName}'. " +
-            $"Related vars: {string.Join(", ", relatedVars)}");
+            $"Service '{serviceName}' not found via service discovery.");
     }
 
     Console.WriteLine($"[Gateway] Discovered {serviceName} at: {url}");
@@ -68,71 +62,108 @@ var modernApiUrl = GetServiceUrl("modern-api");
 var pricingServiceUrl = GetServiceUrl("pricing-service-modern");
 var frontendUrl = GetServiceUrl("frontend");
 
-// Configurar YARP com rotas nomeadas para rastreabilidade no tracing
-// O nome da rota (key) aparece nos spans do OpenTelemetry
-// Blue/Green: ROUTING_MODE controla para onde as cotações SOAP são roteadas
-// "blue" (default) = Legacy SOAP, "green" = Modern.Api REST
+// Estado do gateway — Blue/Green alterável em runtime sem reiniciar
 var routingMode = Environment.GetEnvironmentVariable("ROUTING_MODE") ?? "blue";
-Console.WriteLine($"[Gateway] Routing mode: {routingMode} (blue=Legacy SOAP, green=Modern.Api REST)");
+Console.WriteLine($"[Gateway] Initial routing mode: {routingMode}");
 
-// Se green, cotações SOAP são redirecionadas para o Modern.Api
-var quoteCluster = routingMode == "green" ? "modern-api-cluster" : "quote-service-cluster";
+// YARP com InMemoryConfigProvider — permite alterar rotas em runtime
+var inMemoryConfig = new Legacy.Gateway.InMemoryConfigProvider(
+    BuildRoutes(routingMode),
+    BuildClusters());
 
-var configDict = new Dictionary<string, string?>
-{
-    // Rota REST moderna (Strangler Fig) — /api/* vai para Modern.Api
-    ["ReverseProxy:Routes:modern-api:ClusterId"] = "modern-api-cluster",
-    ["ReverseProxy:Routes:modern-api:Match:Path"] = "/api/{**remainder}",
-    ["ReverseProxy:Routes:modern-api:Order"] = "0",
-
-    // Rota para microsserviço de pricing (Decomposition Pattern)
-    ["ReverseProxy:Routes:pricing-service:ClusterId"] = "pricing-service-cluster",
-    ["ReverseProxy:Routes:pricing-service:Match:Path"] = "/api/pricing/{**remainder}",
-    ["ReverseProxy:Routes:pricing-service:Order"] = "0",
-
-    // Rotas SOAP — Blue/Green: cotações podem ir para Legacy ou Modern
-    ["ReverseProxy:Routes:quote-service:ClusterId"] = quoteCluster,
-    ["ReverseProxy:Routes:quote-service:Match:Path"] = "/QuoteService.svc/{**remainder}",
-    ["ReverseProxy:Routes:quote-service:Order"] = "1",
-
-    ["ReverseProxy:Routes:policy-service:ClusterId"] = "policy-service-cluster",
-    ["ReverseProxy:Routes:policy-service:Match:Path"] = "/PolicyService.svc/{**remainder}",
-    ["ReverseProxy:Routes:policy-service:Order"] = "1",
-
-    ["ReverseProxy:Routes:claims-service:ClusterId"] = "claims-service-cluster",
-    ["ReverseProxy:Routes:claims-service:Match:Path"] = "/ClaimsService.svc/{**remainder}",
-    ["ReverseProxy:Routes:claims-service:Order"] = "1",
-
-    ["ReverseProxy:Routes:pricing-rules-service:ClusterId"] = "pricing-rules-service-cluster",
-    ["ReverseProxy:Routes:pricing-rules-service:Match:Path"] = "/PricingRulesService.svc/{**remainder}",
-    ["ReverseProxy:Routes:pricing-rules-service:Order"] = "1",
-
-    // Rota frontend - catch-all com menor prioridade
-    ["ReverseProxy:Routes:frontend:ClusterId"] = "frontend-cluster",
-    ["ReverseProxy:Routes:frontend:Match:Path"] = "/{**remainder}",
-    ["ReverseProxy:Routes:frontend:Order"] = "100",
-
-    // Clusters (destinos)
-    ["ReverseProxy:Clusters:pricing-service-cluster:Destinations:destination1:Address"] = pricingServiceUrl,
-    ["ReverseProxy:Clusters:modern-api-cluster:Destinations:destination1:Address"] = modernApiUrl,
-    ["ReverseProxy:Clusters:quote-service-cluster:Destinations:destination1:Address"] = quoteServiceUrl,
-    ["ReverseProxy:Clusters:policy-service-cluster:Destinations:destination1:Address"] = policyServiceUrl,
-    ["ReverseProxy:Clusters:claims-service-cluster:Destinations:destination1:Address"] = claimsServiceUrl,
-    ["ReverseProxy:Clusters:pricing-rules-service-cluster:Destinations:destination1:Address"] = pricingRulesServiceUrl,
-    ["ReverseProxy:Clusters:frontend-cluster:Destinations:destination1:Address"] = frontendUrl
-};
-
-var config = new ConfigurationBuilder()
-    .AddInMemoryCollection(configDict)
-    .Build();
-
-builder.Services.AddReverseProxy()
-    .LoadFromConfig(config.GetSection("ReverseProxy"));
+builder.Services.AddSingleton<IProxyConfigProvider>(inMemoryConfig);
+builder.Services.AddSingleton(inMemoryConfig);
+builder.Services.AddReverseProxy();
 
 var app = builder.Build();
 
 app.UseRouting();
+
+// Endpoint para consultar estado do gateway
+app.MapGet("/gateway/status", () => Results.Ok(new
+{
+    routingMode,
+    description = routingMode == "green"
+        ? "Cotações roteadas para Modern.Api REST"
+        : "Cotações roteadas para Legacy QuoteService SOAP",
+    routes = new
+    {
+        quotes_soap = routingMode == "green" ? "modern-api" : "quote-service",
+        api = "modern-api",
+        pricing = "pricing-service-modern",
+        policies_soap = "policy-service",
+        claims_soap = "claims-service",
+        pricing_rules_soap = "pricing-rules-service"
+    }
+}));
+
+// Endpoint para alternar Blue/Green em runtime
+app.MapPost("/gateway/routing/{mode}", (string mode, InMemoryConfigProvider configProvider) =>
+{
+    if (mode != "blue" && mode != "green")
+        return Results.BadRequest(new { error = "Mode must be 'blue' or 'green'" });
+
+    routingMode = mode;
+    configProvider.Update(BuildRoutes(routingMode), BuildClusters());
+
+    Console.WriteLine($"[Gateway] Routing mode changed to: {routingMode}");
+    return Results.Ok(new
+    {
+        routingMode,
+        message = $"Routing switched to {routingMode}",
+        quotes_target = routingMode == "green" ? "Modern.Api REST" : "Legacy QuoteService SOAP"
+    });
+});
+
 app.MapReverseProxy();
 app.MapDefaultEndpoints();
 
 app.Run();
+
+// --- Builders de configuração YARP ---
+
+IReadOnlyList<RouteConfig> BuildRoutes(string mode)
+{
+    var quoteCluster = mode == "green" ? "modern-api-cluster" : "quote-service-cluster";
+
+    return new[]
+    {
+        new RouteConfig { RouteId = "modern-api", ClusterId = "modern-api-cluster", Order = 0,
+            Match = new RouteMatch { Path = "/api/{**remainder}" } },
+        new RouteConfig { RouteId = "pricing-service", ClusterId = "pricing-service-cluster", Order = 0,
+            Match = new RouteMatch { Path = "/api/pricing/{**remainder}" } },
+        new RouteConfig { RouteId = "quote-service", ClusterId = quoteCluster, Order = 1,
+            Match = new RouteMatch { Path = "/QuoteService.svc/{**remainder}" } },
+        new RouteConfig { RouteId = "policy-service", ClusterId = "policy-service-cluster", Order = 1,
+            Match = new RouteMatch { Path = "/PolicyService.svc/{**remainder}" } },
+        new RouteConfig { RouteId = "claims-service", ClusterId = "claims-service-cluster", Order = 1,
+            Match = new RouteMatch { Path = "/ClaimsService.svc/{**remainder}" } },
+        new RouteConfig { RouteId = "pricing-rules-service", ClusterId = "pricing-rules-service-cluster", Order = 1,
+            Match = new RouteMatch { Path = "/PricingRulesService.svc/{**remainder}" } },
+        new RouteConfig { RouteId = "frontend", ClusterId = "frontend-cluster", Order = 100,
+            Match = new RouteMatch { Path = "/{**remainder}" } }
+    };
+}
+
+IReadOnlyList<ClusterConfig> BuildClusters()
+{
+    ClusterConfig Cluster(string id, string address) => new()
+    {
+        ClusterId = id,
+        Destinations = new Dictionary<string, DestinationConfig>
+        {
+            ["destination1"] = new() { Address = address }
+        }
+    };
+
+    return new[]
+    {
+        Cluster("modern-api-cluster", modernApiUrl),
+        Cluster("pricing-service-cluster", pricingServiceUrl),
+        Cluster("quote-service-cluster", quoteServiceUrl),
+        Cluster("policy-service-cluster", policyServiceUrl),
+        Cluster("claims-service-cluster", claimsServiceUrl),
+        Cluster("pricing-rules-service-cluster", pricingRulesServiceUrl),
+        Cluster("frontend-cluster", frontendUrl)
+    };
+}

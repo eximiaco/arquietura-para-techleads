@@ -1,0 +1,168 @@
+@{
+    ViewData["Title"] = "Painel do Workshop";
+    var routingMode = (string)ViewBag.RoutingMode;
+    var isGreen = routingMode == "green";
+}
+
+<h2>Painel do Workshop</h2>
+<p class="text-muted">Controle os padrões de estrangulamento e teste cada estratégia.</p>
+
+<div class="row mt-4">
+
+    <!-- 1. Strangler Fig -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <strong>1. Strangler Fig Pattern</strong>
+                <span class="badge bg-success float-end">Sempre ativo</span>
+            </div>
+            <div class="card-body">
+                <p>Modern.Api REST coexiste com Legacy SOAP. Leituras migradas para REST.</p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="/api/quotes/customer/999" target="_blank" class="btn btn-sm btn-outline-primary">GET Cotações (REST)</a>
+                    <a href="/api/policies/customer/999" target="_blank" class="btn btn-sm btn-outline-primary">GET Apólices (REST)</a>
+                    <a href="/api/claims/policy/AUTO-1234" target="_blank" class="btn btn-sm btn-outline-primary">GET Sinistros (REST)</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. CQRS -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <strong>2. CQRS</strong>
+                <span class="badge bg-success float-end">Sempre ativo</span>
+            </div>
+            <div class="card-body">
+                <p>Queries via REST moderno, Commands via SOAP legado.</p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="/api/quotes/customer/999" target="_blank" class="btn btn-sm btn-outline-info">Query: Cotações</a>
+                    <a asp-controller="Quotes" asp-action="Create" class="btn btn-sm btn-outline-warning">Command: Nova Cotação (SOAP)</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. CDC -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-success">
+            <div class="card-header bg-success text-white">
+                <strong>3. CDC (Change Data Capture)</strong>
+                <span class="badge bg-success float-end">Sempre ativo</span>
+            </div>
+            <div class="card-body">
+                <p>Triggers PostgreSQL notificam mudanças. O CDC Worker captura e emite spans.</p>
+                <p class="small text-muted">Crie ou aprove uma cotação e veja o evento CDC no Dashboard → Traces → recurso <code>cdc-worker</code>.</p>
+                <a asp-controller="Quotes" asp-action="Create" class="btn btn-sm btn-outline-success">Criar Cotação (dispara CDC)</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Blue/Green -->
+    <div class="col-md-6 mb-4">
+        <div class="card @(isGreen ? "border-success" : "border-primary")">
+            <div class="card-header @(isGreen ? "bg-success" : "bg-primary") text-white">
+                <strong>4. Blue/Green Deployment</strong>
+                <span class="badge @(isGreen ? "bg-warning text-dark" : "bg-light text-dark") float-end">
+                    @(isGreen ? "GREEN (Modern)" : "BLUE (Legacy)")
+                </span>
+            </div>
+            <div class="card-body">
+                <p>Alterna cotações entre Legacy SOAP e Modern.Api REST <strong>sem reiniciar</strong>.</p>
+                <p>Status atual: <strong>@(isGreen ? "GREEN — Cotações via Modern.Api REST" : "BLUE — Cotações via Legacy SOAP")</strong></p>
+                <div class="d-flex gap-2">
+                    <form asp-action="SwitchRouting" method="post" class="d-inline">
+                        <input type="hidden" name="mode" value="blue" />
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm @(isGreen ? "btn-primary" : "btn-primary disabled")" @(isGreen ? "" : "disabled")>
+                            Ativar BLUE (Legacy)
+                        </button>
+                    </form>
+                    <form asp-action="SwitchRouting" method="post" class="d-inline">
+                        <input type="hidden" name="mode" value="green" />
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm @(isGreen ? "btn-success disabled" : "btn-success")" @(isGreen ? "disabled" : "")>
+                            Ativar GREEN (Modern)
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. ACL -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <strong>5. Anti-Corruption Layer (ACL)</strong>
+                <span class="badge bg-success float-end">Sempre ativo</span>
+            </div>
+            <div class="card-body">
+                <p>Modern.Api traduz REST/JSON → SOAP/XML via adapter, sem conhecer WCF.</p>
+                <p class="small text-muted">POST via REST cria cotação no legado SOAP transparentemente.</p>
+                <button class="btn btn-sm btn-outline-warning" onclick="testAcl()">Testar POST /api/quotes (ACL)</button>
+                <pre id="acl-result" class="mt-2 small" style="display:none; max-height:200px; overflow:auto;"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Proxy/Decomposition -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-secondary">
+            <div class="card-header bg-secondary text-white">
+                <strong>6. Proxy Pattern (Decomposition)</strong>
+                <span class="badge bg-success float-end">Sempre ativo</span>
+            </div>
+            <div class="card-body">
+                <p>PricingService extraído como microsserviço independente.</p>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a href="/api/pricing/rules" target="_blank" class="btn btn-sm btn-outline-secondary">Todas as Regras</a>
+                    <a href="/api/pricing/rules/active" target="_blank" class="btn btn-sm btn-outline-secondary">Regras Ativas</a>
+                    <a href="/api/pricing/calculate?vehicleYear=2022&customerId=999" target="_blank" class="btn btn-sm btn-outline-secondary">Calcular Prêmio</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Erros Simulados -->
+<div class="card border-danger mt-2 mb-4">
+    <div class="card-header bg-danger text-white">
+        <strong>Erros Simulados</strong>
+    </div>
+    <div class="card-body">
+        <p>Teste cenários de erro para demonstrar troubleshooting com CorrelationId no Dashboard.</p>
+        <div class="d-flex gap-2 flex-wrap">
+            <a asp-controller="Quotes" asp-action="Create" class="btn btn-sm btn-outline-danger">Criar Cotação com Erro no Banco</a>
+            <a asp-controller="Quotes" asp-action="Index" class="btn btn-sm btn-outline-danger">Aprovar Cotação com Erro WCF</a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+async function testAcl() {
+    var resultEl = document.getElementById('acl-result');
+    resultEl.style.display = 'block';
+    resultEl.textContent = 'Enviando POST /api/quotes via ACL...';
+    try {
+        var res = await fetch('/api/quotes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customerId: 999,
+                vehiclePlate: 'ACL-' + Math.floor(Math.random() * 9000 + 1000),
+                vehicleModel: 'Honda Civic',
+                vehicleYear: 2022
+            })
+        });
+        var data = await res.json();
+        resultEl.textContent = JSON.stringify(data, null, 2);
+    } catch (e) {
+        resultEl.textContent = 'Erro: ' + e.message;
+    }
+}
+</script>
+}
