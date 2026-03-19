@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 
 namespace SeguroAuto.Web.Controllers;
@@ -6,20 +7,36 @@ namespace SeguroAuto.Web.Controllers;
 /// <summary>
 /// Endpoint que recebe spans do browser (OpenTelemetry client-side)
 /// e os re-emite como Activities para o OTLP exporter do servidor.
-/// Isso permite que interações do usuário (clicks, form submits, page loads)
-/// apareçam no Aspire Dashboard conectadas ao trace distribuído.
+/// Aceita qualquer Content-Type (sendBeacon envia como text/plain).
 /// </summary>
-[ApiController]
 [Route("telemetry")]
-public class TelemetryController : ControllerBase
+public class TelemetryController : Controller
 {
     private static readonly ActivitySource BrowserActivitySource = new("SeguroAuto.Browser");
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     [HttpPost("spans")]
-    public IActionResult ReceiveSpan([FromBody] BrowserSpan span)
+    public async Task<IActionResult> ReceiveSpan()
     {
-        if (string.IsNullOrEmpty(span.TraceId) || string.IsNullOrEmpty(span.Name))
-            return BadRequest();
+        // Lê o body cru — sendBeacon envia como text/plain, não application/json
+        using var reader = new StreamReader(Request.Body);
+        var body = await reader.ReadToEndAsync();
+
+        if (string.IsNullOrWhiteSpace(body))
+            return Ok();
+
+        BrowserSpan? span;
+        try
+        {
+            span = JsonSerializer.Deserialize<BrowserSpan>(body, JsonOptions);
+        }
+        catch
+        {
+            return Ok(); // Ignora payloads inválidos silenciosamente
+        }
+
+        if (span == null || string.IsNullOrEmpty(span.TraceId) || string.IsNullOrEmpty(span.Name))
+            return Ok();
 
         // Reconstrói o parent context para vincular ao trace distribuído
         ActivityContext parentContext = default;
