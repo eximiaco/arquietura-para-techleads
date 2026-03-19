@@ -45,6 +45,16 @@
             </div>
         </nav>
     </header>
+    @{
+        // Banner Blue/Green — indica visualmente o modo de roteamento atual
+        var routingModeBanner = ViewBag.RoutingMode as string;
+    }
+    @if (routingModeBanner == "green")
+    {
+        <div class="text-center py-1 small fw-bold" style="background-color:#198754;color:white;">
+            GREEN — Frontend usando API REST moderna
+        </div>
+    }
     <div class="container">
         <main role="main" class="pb-3">
             @if (TempData["Success"] != null)

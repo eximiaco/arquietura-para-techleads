@@ -1,3 +1,4 @@
+using OpenTelemetry.Trace;
 using SeguroAuto.ServiceDefaults;
 using SeguroAuto.Web.Services;
 
@@ -11,17 +12,27 @@ builder.Configuration.AddEnvironmentVariables();
 builder.AddServiceDefaults();
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add<SeguroAuto.Web.Filters.RoutingModeFilter>();
+});
 
 // Register HttpClientFactory
 builder.Services.AddHttpClient();
 
-// Register SOAP service clients as Scoped
-// Os clientes usam IHttpClientFactory, então registramos manualmente
-builder.Services.AddScoped<IQuoteServiceClient, QuoteServiceClient>();
+// Service clients — QuoteService usa RoutingClient que alterna SOAP/REST via Blue/Green
+builder.Services.AddScoped<QuoteServiceClient>();
+builder.Services.AddScoped<RestQuoteServiceClient>();
+builder.Services.AddScoped<IQuoteServiceClient, RoutingQuoteServiceClient>();
 builder.Services.AddScoped<IPolicyServiceClient, PolicyServiceClient>();
 builder.Services.AddScoped<IClaimsServiceClient, ClaimsServiceClient>();
 builder.Services.AddScoped<IPricingRulesServiceClient, PricingRulesServiceClient>();
+
+// Registra ActivitySource do REST client
+builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
+{
+    tracing.AddSource("SeguroAuto.Web.RestClient");
+});
 
 var app = builder.Build();
 
