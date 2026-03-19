@@ -62,6 +62,8 @@ public class QuotesController : Controller
             return View(model);
         }
 
+        var correlationId = Activity.Current?.TraceId.ToString() ?? "";
+
         try
         {
             var quote = await _quoteServiceClient.GetQuoteAsync(
@@ -75,7 +77,6 @@ public class QuotesController : Controller
         }
         catch (Exception ex)
         {
-            var correlationId = Activity.Current?.TraceId.ToString() ?? "";
             _logger.LogError(ex, "Error creating quote. CorrelationId: {CorrelationId}", correlationId);
             ModelState.AddModelError("", $"Erro ao criar cotação. CorrelationId: {correlationId}");
             return View(model);
@@ -86,6 +87,9 @@ public class QuotesController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Approve(string quoteNumber, int? customerId, bool simulateError = false)
     {
+        // Captura o TraceId no início — antes de qualquer chamada que possa falhar
+        var correlationId = Activity.Current?.TraceId.ToString() ?? "";
+
         try
         {
             var success = await _quoteServiceClient.ApproveQuoteAsync(quoteNumber, simulateError);
@@ -96,14 +100,13 @@ public class QuotesController : Controller
             }
             else
             {
-                TempData["Error"] = $"Não foi possível aprovar a cotação {quoteNumber}.";
+                TempData["Error"] = $"Não foi possível aprovar a cotação {quoteNumber}. CorrelationId: {correlationId}";
             }
 
             return RedirectToAction(nameof(Index), new { customerId = customerId ?? 999 });
         }
         catch (Exception ex)
         {
-            var correlationId = Activity.Current?.TraceId.ToString() ?? "";
             _logger.LogError(ex, "Error approving quote: {QuoteNumber}, SimulateError: {SimulateError}, CorrelationId: {CorrelationId}",
                 quoteNumber, simulateError, correlationId);
             TempData["Error"] = simulateError
