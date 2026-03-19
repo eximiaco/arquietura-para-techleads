@@ -10,8 +10,9 @@ Resumo rápido
 Tecnologias principais
 - CoreWCF (compatibilidade com SOAP em .NET moderno)
 - .NET Aspire (orquestração local e observabilidade)
-- OpenTelemetry (tracing distribuído)
-- SQLite (persistência leve, zero-setup)
+- PostgreSQL (banco de dados via container Aspire)
+- OpenTelemetry (tracing distribuído end-to-end)
+- YARP (reverse proxy / gateway)
 
 > ! Sobre o Rider
 >
@@ -26,11 +27,17 @@ Sumário
 - [Orquestração com .NET Aspire](#orquestracao-com-net-aspire)
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Observabilidade](#observabilidade)
-- [Estratégia de Banco de Dados (SQLite)](#estrategia-de-banco-de-dados-sqlite)
+- [Telemetria do Browser](#telemetria-do-browser)
+- [Telemetria de Banco de Dados](#telemetria-de-banco-de-dados)
+- [Resource Detectors (Container/Host)](#resource-detectors)
+- [Casos de Uso do Workshop](#casos-de-uso-do-workshop)
+- [Banco de Dados (PostgreSQL)](#banco-de-dados-postgresql)
 - [Dataset mockado e seeding](#dataset-mockado-e-seeding)
 - [Variáveis de Ambiente](#variaveis-de-ambiente)
 - [Como Inicializar](#como-inicializar)
 - [Injeção de Falhas, Delay e Caos](#injecao-de-falhas-delay-e-caos)
+- [Erros Simulados via Interface](#erros-simulados-via-interface)
+- [Troubleshooting com CorrelationId](#troubleshooting-com-correlationid)
 
 ---
 
@@ -43,8 +50,9 @@ Este projeto foi criado para simular, de forma controlada e didática, um ambien
 - Demonstrar problemas clássicos de sistemas legados
 - Demonstrar observabilidade distribuída com OpenTelemetry e Aspire
 - Demonstrar telemetria de banco de dados com correlation_id
-- Orquestrar cenários com .NET Aspire
-- Trabalhar com dados persistidos, relacionados e previsíveis
+- Demonstrar telemetria do browser (client-side) conectada ao trace do servidor
+- Simular erros controlados na integração WCF e na procedure do banco
+- Exercitar troubleshooting usando CorrelationId e o Aspire Dashboard
 - Introduzir falhas, delays e caos de forma controlada
 
 ---
@@ -61,30 +69,25 @@ O WCF clássico (server-side) não é suportado diretamente em .NET moderno nem 
 - Suporta bindings como `BasicHttpBinding`
 - Roda em Linux, containers e .NET moderno
 
-Racional pedagógico: CoreWCF não é o WCF Framework original, mas é suficientemente semelhante para ensinar acoplamento, contratos rígidos e limitações operacionais.
-
 ### Redução de fricção (princípio central)
 
-O projeto foi projetado para reduzir barreiras ao laboratório:
-
-- Não depender de Windows
-- Não exigir IIS
-- Não exigir SQL Server
+- Não depender de Windows ou IIS
 - Rodar igual em macOS / Linux / Windows
-- Ter um comando para executar (fluxo simples de execução)
+- Um comando para executar tudo (`dotnet run`)
+- PostgreSQL sobe automaticamente via container Aspire
 
 ---
 
 <a id="orquestracao-com-net-aspire"></a>
 ## Orquestração com .NET Aspire
 
-O .NET Aspire é usado como plataforma de orquestração local. Responsabilidades principais:
+O .NET Aspire é usado como plataforma de orquestração local:
 
-- Subir múltiplos serviços simultaneamente
-- Gerenciar dependências entre serviços
-- Injetar variáveis de ambiente por cenário
-- Fornecer observabilidade (logs, traces, métricas) via dashboard
-- Injetar automaticamente `OTEL_EXPORTER_OTLP_ENDPOINT` nos serviços
+- Sobe PostgreSQL como container automaticamente
+- Gerencia todos os serviços com portas dinâmicas
+- Injeta connection strings e variáveis de ambiente
+- Fornece observabilidade (logs, traces, métricas) via Dashboard
+- Injeta automaticamente `OTEL_EXPORTER_OTLP_ENDPOINT` nos serviços
 
 ---
 
@@ -97,19 +100,19 @@ src/
     SeguroAuto.Domain/          # Entidades de domínio
     SeguroAuto.Data/            # DbContext, seeding, DbOperationLog
     SeguroAuto.Common/          # Utilitários compartilhados
-    SeguroAuto.FaultInjection/  # Middleware de injeção de falhas
-    SeguroAuto.ServiceDefaults/ # OpenTelemetry + health checks
+    SeguroAuto.FaultInjection/  # Middleware de injeção de falhas com tracing
+    SeguroAuto.ServiceDefaults/ # OpenTelemetry + Resource Detectors + health checks
   Legacy/
-    Legacy.QuoteService/        # Serviço SOAP de cotações
+    Legacy.QuoteService/        # Serviço SOAP de cotações (com procedures simuladas)
     Legacy.PolicyService/       # Serviço SOAP de apólices
     Legacy.ClaimsService/       # Serviço SOAP de sinistros
     Legacy.PricingRulesService/ # Serviço SOAP de regras de precificação
-    Legacy.Gateway/             # YARP reverse proxy
-    Legacy.DbTelemetryWorker/   # Worker que exporta telemetria do banco
+    Legacy.Gateway/             # YARP reverse proxy com tracing
+    Legacy.DbTelemetryWorker/   # Worker que exporta telemetria do banco via OTLP
     Legacy.AppHost/             # Aspire AppHost (orquestração)
     Legacy.TestClient/          # Cliente de teste
   Frontend/
-    SeguroAuto.Web/             # Frontend MVC
+    SeguroAuto.Web/             # Frontend MVC com telemetria do browser
 ```
 
 ---
@@ -119,51 +122,179 @@ src/
 
 O projeto implementa tracing distribuído end-to-end usando OpenTelemetry com exportação OTLP para o Aspire Dashboard.
 
-### Fluxo do trace
+### Fluxo completo do trace
 
 ```
-Browser → Frontend MVC → Gateway YARP → Serviço SOAP → Banco de Dados
+Browser (click/page load)
+  └── Frontend MVC (ASP.NET Core)
+        └── SOAP Client span (envelope XML capturado)
+              └── Gateway YARP (path real no span)
+                    └── Serviço SOAP (CoreWCF)
+                          └── FaultInjection (delay/erro)
+                                └── Procedure no banco (sp_create_quote)
+                                      └── Informações da sessão PostgreSQL
 ```
 
-Cada componente gera spans que são correlacionados automaticamente via W3C traceparent:
+### ActivitySources registradas
 
-- **Frontend**: spans de requisição ASP.NET Core + spans customizados nos SOAP clients (`SeguroAuto.Web.SoapClient`)
-- **Gateway**: spans do YARP reverse proxy
-- **Serviços SOAP**: spans de requisição ASP.NET Core + spans do FaultInjection middleware (`SeguroAuto.FaultInjection`)
-- **Banco de dados**: spans reconstruídos pelo `DbTelemetryWorker` a partir da tabela `db_operation_logs` (`SeguroAuto.Database`)
-
-### Telemetria de banco de dados
-
-O QuoteService usa raw SQL "procedures" que passam o `correlation_id` (trace_id + span_id):
-
-1. A "procedure" executa a operação de negócio (INSERT/UPDATE)
-2. Loga a operação na tabela `db_operation_logs` com o trace context
-3. O `DbTelemetryWorker` lê os logs pendentes a cada 2s
-4. Reconstrói spans com o parent context original e exporta via OTLP
-
-No Dashboard, o span `sp_create_quote` aparece **dentro** do trace do QuoteService, demonstrando correlação entre aplicação e banco.
+| ActivitySource | Onde aparece | O que captura |
+|----------------|-------------|---------------|
+| `SeguroAuto.Web.SoapClient` | frontend | Chamadas SOAP com envelope XML request/response |
+| `SeguroAuto.FaultInjection` | serviços SOAP | Delay, erro e chaos injections |
+| `SeguroAuto.Database` | db-telemetry-worker | Operações SQL da procedure com sessão PostgreSQL |
+| `SeguroAuto.Browser` | frontend | Page load, clicks, form submits do browser |
 
 ### Dashboard
 
 - URL: http://localhost:15000
-- OTLP endpoint: http://localhost:15001
-- Aba **Traces**: visualizar fluxo distribuído completo
-- Aba **Structured Logs**: logs correlacionados com traces
+- Aba **Traces**: fluxo distribuído completo (waterfall)
+- Aba **Structured Logs**: logs correlacionados — buscar por TraceId
+- Aba **Metrics**: métricas de runtime, HTTP e ASP.NET Core
 
 ---
 
-<a id="estrategia-de-banco-de-dados-sqlite"></a>
-## Estratégia de Banco de Dados (SQLite)
+<a id="telemetria-do-browser"></a>
+## Telemetria do Browser
 
-Por que SQLite?
-- Zero setup
-- Arquivo local, transportável
-- Funciona em containers Linux
-- Ideal para laboratório e treinamento
+O arquivo `otel-browser.js` captura interações do usuário no browser e envia para o servidor via `POST /telemetry/spans`. O servidor reconstrói os spans como Activities vinculadas ao trace distribuído.
 
-Arquivo de banco: `data/legacy.db`
+### O que é capturado
 
-O caminho do arquivo de banco é injetado via variável de ambiente (`DB_PATH`).
+| Evento | Span name | Dados |
+|--------|-----------|-------|
+| Página carrega | `browser page_load` | URL, título, tempo de carga, DOM ready |
+| Click em botão/link | `browser click` | Elemento, texto, href |
+| Form submit | `browser form_submit` | Método, action, URL |
+
+### Como funciona
+
+1. O servidor injeta `<meta name="traceparent">` no HTML com o TraceId atual
+2. O JS lê o traceparent e usa como parent context
+3. Ao capturar um evento, envia via `sendBeacon` para `/telemetry/spans`
+4. O `TelemetryController` reconstrói a Activity com o parent context original
+5. O span aparece no Dashboard vinculado ao mesmo trace
+
+---
+
+<a id="telemetria-de-banco-de-dados"></a>
+## Telemetria de Banco de Dados
+
+O QuoteService usa raw SQL "procedures" que passam o `correlation_id` (trace_id + span_id) e capturam informações da sessão PostgreSQL.
+
+### Informações capturadas pela procedure
+
+| Tag OTel | Origem PostgreSQL | Exemplo |
+|----------|-------------------|---------|
+| `db.postgresql.pid` | `pg_backend_pid()` | 42 |
+| `db.postgresql.transaction_id` | `txid_current()` | 12345 |
+| `db.user` | `session_user` | postgres |
+| `db.name` | `current_database()` | legacydb |
+| `db.postgresql.application_name` | `current_setting('application_name')` | quote-service |
+| `server.address` | `inet_server_addr()` | 172.17.0.2 |
+| `server.port` | `inet_server_port()` | 5432 |
+
+### Fluxo
+
+1. A procedure executa INSERT/UPDATE + captura sessão PostgreSQL
+2. Loga na tabela `db_operation_logs` com trace context e dados da sessão
+3. O `DbTelemetryWorker` lê logs pendentes a cada 2s
+4. Reconstrói spans com parent context original e exporta via OTLP
+5. No Dashboard, `sp_create_quote` aparece dentro do trace do QuoteService
+
+---
+
+<a id="resource-detectors"></a>
+## Resource Detectors (Container/Host)
+
+Todos os serviços incluem resource attributes que aparecem em cada span:
+
+| Atributo | Exemplo | Descrição |
+|----------|---------|-----------|
+| `host.name` | `3f8a2b1c9d4e` | Hostname do container |
+| `os.description` | `Debian GNU/Linux 12` | Distro do OS |
+| `os.type` | `linux` | Tipo do OS |
+| `process.pid` | `1` | PID do processo |
+| `process.runtime.name` | `.NET 10.0.0` | Runtime |
+| `container.id` | `3f8a2b1c9d...` | ID do container Docker (Linux) |
+
+---
+
+<a id="casos-de-uso-do-workshop"></a>
+## Casos de Uso do Workshop
+
+### 1. Fluxo normal — Criar Cotação
+
+1. Acesse http://localhost:15100 → Cotações → Nova Cotação
+2. Preencha o formulário e clique **Criar Cotação**
+3. No Dashboard → Traces: veja o fluxo completo browser → frontend → gateway → quote-service → banco
+
+### 2. Fluxo normal — Aprovar Cotação
+
+1. Na lista de cotações, clique **Aprovar** (botão verde)
+2. No Dashboard → Traces: veja `sp_approve_quote` com dados da sessão PostgreSQL
+
+### 3. Erro simulado na integração WCF — Aprovar com Erro
+
+1. Na lista de cotações, clique **Aprovar com Erro** (botão vermelho)
+2. O frontend exibe mensagem de erro com **CorrelationId**
+3. No Dashboard → Traces: o span do `quote-service` aparece vermelho com:
+   - `approve.simulate_error = true`
+   - `error.simulated = true`
+   - Status Error: "ERRO SIMULADO: Falha na integração WCF"
+4. No Dashboard → Structured Logs: busque pelo CorrelationId para ver todos os logs correlacionados
+
+### 4. Erro simulado na procedure do banco — Criar com Erro no Banco
+
+1. Acesse Cotações → Nova Cotação
+2. Preencha o formulário e clique **Criar com Erro no Banco** (botão vermelho)
+3. A procedure executa o INSERT e depois provoca erro real do PostgreSQL
+4. O INSERT é desfeito (rollback), mas o erro é logado na `db_operation_logs`
+5. O `DbTelemetryWorker` captura e emite span com erro no tracing
+6. No Dashboard → Traces: o span `sp_create_quote` aparece vermelho com:
+   - `db.operation.details` contendo `simulated_error: true`
+   - `ErrorMessage` com o erro real do PostgreSQL
+   - Dados da sessão PostgreSQL (PID, transaction ID, server IP)
+7. O frontend exibe **CorrelationId** na mensagem de erro
+
+### 5. Troubleshooting com CorrelationId
+
+1. Quando qualquer erro ocorre, o frontend exibe o **CorrelationId** (TraceId)
+2. Copie o CorrelationId
+3. No Dashboard → **Structured Logs** → filtre por TraceId
+4. Veja todos os logs de todos os serviços correlacionados naquele trace
+5. Clique no link do trace para ver o waterfall completo
+
+### 6. Injeção de falhas via variáveis de ambiente
+
+1. Pare o AppHost
+2. Configure: `export FAULT_MODE=chaos` e `export FAULT_ERROR_RATE=0.3`
+3. Reinicie: `dotnet run --project src/Legacy/Legacy.AppHost`
+4. 30% das requisições aos serviços SOAP terão erros aleatórios
+5. No Dashboard → Traces: spans vermelhos com `fault.type`, `fault.error_kind`
+
+### 7. Observar telemetria do browser
+
+1. Acesse qualquer página do frontend
+2. No Dashboard → Traces: spans `browser page_load`, `browser click`, `browser form_submit`
+3. Os spans do browser aparecem dentro do mesmo trace que o servidor
+
+---
+
+<a id="banco-de-dados-postgresql"></a>
+## Banco de Dados (PostgreSQL)
+
+O PostgreSQL é gerenciado pelo Aspire — sobe como container Docker automaticamente.
+
+- **Senha fixa**: `workshop2026` (evita conflito com volume persistido)
+- **Database**: `legacydb`
+- **Volume**: dados persistidos entre execuções via `WithDataVolume()`
+- **Schema**: criado automaticamente via `EnsureCreatedAsync()` no startup
+- **Sequences**: resetadas após seeding para evitar conflito de PKs
+
+Para resetar o banco:
+```bash
+docker volume rm $(docker volume ls -q | grep postgres)
+```
 
 ---
 
@@ -191,7 +322,6 @@ Variáveis comuns a todos os serviços:
 
 | Variável | Descrição |
 |----------|-----------|
-| `DB_PATH` | Caminho do arquivo `.db` (ex: `/data/legacy.db`) |
 | `DATASET_SEED` | Seed do dataset (ex: `1001`) |
 | `DATASET_PROFILE` | Perfil do dataset: `legacy` |
 
@@ -211,25 +341,19 @@ Variáveis para injeção de falhas:
 
 ### Pré-requisitos
 
-1. **.NET 10 SDK instalado**
-   - Verifique: `dotnet --version` (deve mostrar 10.x.x)
-
-2. **.NET Aspire workload instalado**
-   ```bash
-   dotnet workload install aspire
-   ```
+1. **.NET 10 SDK** — `dotnet --version` (10.x.x)
+2. **.NET Aspire workload** — `dotnet workload install aspire`
+3. **Docker** — necessário para o container PostgreSQL
 
 ### Executar
 
 ```bash
-# Navegue até o diretório do AppHost
 cd src/Legacy/Legacy.AppHost
-
-# Execute
 dotnet run
 ```
 
 **O que será iniciado:**
+- PostgreSQL (container Docker) - porta dinâmica
 - QuoteService (CoreWCF) - porta dinâmica
 - PolicyService (CoreWCF) - porta dinâmica
 - ClaimsService (CoreWCF) - porta dinâmica
@@ -239,58 +363,52 @@ dotnet run
 - DbTelemetryWorker - background service
 - Dashboard Aspire - porta 15000
 
-**Acessar serviços:**
+**Acessar:**
 - Dashboard Aspire: http://localhost:15000
-- Gateway: http://localhost:15100
-- Frontend MVC: http://localhost:15100 (via gateway)
-- Endpoints SOAP: http://localhost:15100/QuoteService.svc (via gateway)
-
-**Testar serviços:**
-```bash
-# Acessar o Frontend MVC no navegador
-open http://localhost:15100
-
-# Ou usar curl para SOAP
-curl -X POST http://localhost:15100/QuoteService.svc \
-  -H "Content-Type: text/xml; charset=utf-8" \
-  -H "SOAPAction: http://eximia.co/seguroauto/legacy/IQuoteService/GetQuote" \
-  -d @soap-request.xml
-```
-
-### Solução de Problemas
-
-**Erro: NETSDK1147 - workload aspire não instalada**
-```bash
-dotnet workload install aspire
-```
-
-**Verificar workload:**
-```bash
-dotnet workload list
-```
-
-### Notas Importantes
-
-1. **Porta fixa do Gateway**: 15100 (facilita testes e arquivos .http)
-2. **Demais serviços**: portas dinâmicas atribuídas pelo Aspire
-3. **Dashboard**: http://localhost:15000
-4. **Seeding automático**: idempotente, só popula se o banco estiver vazio
-5. **IDs âncora**: Customer 999, Policy 1234, Policy Number "AUTO-1234"
+- Frontend MVC: http://localhost:15100
+- Endpoints SOAP: http://localhost:15100/QuoteService.svc
 
 ---
 
 <a id="injecao-de-falhas-delay-e-caos"></a>
 ## Injeção de Falhas, Delay e Caos
 
-Objetivo: permitir que o instrutor demonstre problemas reais, controle o impacto e ative/desative falhas sem alterar código.
-
-Como funciona:
-- Middleware global em ASP.NET Core que executa antes do CoreWCF
-- Lê as variáveis de ambiente listadas acima
-- Decide se atrasa, falha ou deixa o pedido passar
-- Gera spans no tracing com tags `fault.type`, `fault.delay_ms`, `fault.error_kind`
+Middleware global em ASP.NET Core que executa antes do CoreWCF. Gera spans no tracing com tags `fault.type`, `fault.delay_ms`, `fault.error_kind`.
 
 Modos disponíveis:
 - `delay`: simula lentidão de rede/processamento
 - `error`: retorna erro consistente
 - `chaos`: aplica erro aleatório conforme `FAULT_ERROR_RATE`
+
+---
+
+<a id="erros-simulados-via-interface"></a>
+## Erros Simulados via Interface
+
+O frontend oferece botões vermelhos para simular erros controlados, visíveis no tracing:
+
+| Ação | Botão | Onde ocorre o erro | O que aparece no tracing |
+|------|-------|--------------------|--------------------------|
+| Aprovar cotação | **Aprovar com Erro** | Serviço WCF (FaultException) | Span vermelho no quote-service com `error.simulated=true` |
+| Criar cotação | **Criar com Erro no Banco** | Procedure no PostgreSQL | Span vermelho `sp_create_quote` via worker com erro real do banco |
+
+Ambos exibem o **CorrelationId** na mensagem de erro para troubleshooting.
+
+---
+
+<a id="troubleshooting-com-correlationid"></a>
+## Troubleshooting com CorrelationId
+
+Quando um erro ocorre, o frontend exibe o CorrelationId (TraceId do OpenTelemetry):
+
+```
+Erro simulado na aprovação da cotação QUOTE-ANCHOR-999.
+CorrelationId: 4bf92f3577b34da6a3ce929d0e0e4736
+Busque no Dashboard → Structured Logs → filtrar por TraceId
+```
+
+O CorrelationId permite:
+1. **Buscar nos Structured Logs** — ver todos os logs de todos os serviços naquele trace
+2. **Ver o Trace Detail** — waterfall com todos os spans do fluxo completo
+3. **Identificar onde o erro ocorreu** — spans vermelhos indicam a origem
+4. **Compartilhar com a equipe** — o ID identifica univocamente a operação que falhou
