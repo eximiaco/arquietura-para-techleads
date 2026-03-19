@@ -51,6 +51,13 @@
                                         @Html.AntiForgeryToken()
                                         <button type="submit" class="btn btn-sm btn-success">Aprovar</button>
                                     </form>
+                                    <form asp-action="Approve" method="post" class="d-inline ms-1">
+                                        <input type="hidden" name="quoteNumber" value="@quote.QuoteNumber" />
+                                        <input type="hidden" name="customerId" value="@quote.CustomerId" />
+                                        <input type="hidden" name="simulateError" value="true" />
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Simula erro na integração WCF (visível no tracing)">Aprovar com Erro</button>
+                                    </form>
                                 }
                             </td>
                         </tr>

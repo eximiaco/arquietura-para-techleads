@@ -4,7 +4,7 @@ public interface IQuoteServiceClient
 {
     Task<QuoteResponse> GetQuoteAsync(int customerId, string vehiclePlate, string vehicleModel, int vehicleYear);
     Task<List<QuoteResponse>> GetQuotesByCustomerAsync(int customerId);
-    Task<bool> ApproveQuoteAsync(string quoteNumber);
+    Task<bool> ApproveQuoteAsync(string quoteNumber, bool simulateError = false);
 }
 
 public class QuoteResponse

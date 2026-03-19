@@ -48,8 +48,11 @@ public class GetQuotesByCustomerResponse
 [MessageContract]
 public class ApproveQuoteRequest
 {
-    [MessageBodyMember]
+    [MessageBodyMember(Order = 1)]
     public string QuoteNumber { get; set; } = string.Empty;
+
+    [MessageBodyMember(Order = 2)]
+    public bool SimulateError { get; set; }
 }
 
 [MessageContract]

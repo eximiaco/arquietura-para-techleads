@@ -131,7 +131,22 @@ public class QuoteService : IQuoteService
     {
         try
         {
-            _logger.LogInformation("ApproveQuote called for QuoteNumber: {QuoteNumber}", request.QuoteNumber);
+            _logger.LogInformation("ApproveQuote called for QuoteNumber: {QuoteNumber}, SimulateError: {SimulateError}",
+                request.QuoteNumber, request.SimulateError);
+
+            // Sinalização de erro simulado — visível no tracing via tag
+            var activity = Activity.Current;
+            activity?.SetTag("approve.simulate_error", request.SimulateError);
+
+            if (request.SimulateError)
+            {
+                _logger.LogWarning("Simulated error requested for QuoteNumber: {QuoteNumber}", request.QuoteNumber);
+                activity?.SetStatus(ActivityStatusCode.Error, "Simulated integration error");
+                activity?.SetTag("error.simulated", true);
+                throw new FaultException(
+                    "ERRO SIMULADO: Falha na integração WCF ao aprovar cotação. " +
+                    "Sistema de subscrição indisponível.");
+            }
 
             var success = ExecuteApproveQuoteProcedure(request.QuoteNumber);
 
@@ -141,6 +156,10 @@ public class QuoteService : IQuoteService
                 _logger.LogWarning("Quote not found: {QuoteNumber}", request.QuoteNumber);
 
             return new ApproveQuoteResponse { Success = success };
+        }
+        catch (FaultException)
+        {
+            throw;
         }
         catch (Exception ex)
         {

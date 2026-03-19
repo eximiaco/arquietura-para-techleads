@@ -80,12 +80,12 @@ public class QuotesController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Approve(string quoteNumber, int? customerId)
+    public async Task<IActionResult> Approve(string quoteNumber, int? customerId, bool simulateError = false)
     {
         try
         {
-            var success = await _quoteServiceClient.ApproveQuoteAsync(quoteNumber);
-            
+            var success = await _quoteServiceClient.ApproveQuoteAsync(quoteNumber, simulateError);
+
             if (success)
             {
                 TempData["Success"] = $"Cotação {quoteNumber} aprovada com sucesso!";
@@ -99,8 +99,11 @@ public class QuotesController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error approving quote: {QuoteNumber}", quoteNumber);
-            TempData["Error"] = "Erro ao aprovar cotação. Tente novamente.";
+            _logger.LogError(ex, "Error approving quote: {QuoteNumber}, SimulateError: {SimulateError}",
+                quoteNumber, simulateError);
+            TempData["Error"] = simulateError
+                ? $"Erro simulado na aprovação da cotação {quoteNumber} (visível no tracing)."
+                : "Erro ao aprovar cotação. Tente novamente.";
             return RedirectToAction(nameof(Index), new { customerId = customerId ?? 999 });
         }
     }

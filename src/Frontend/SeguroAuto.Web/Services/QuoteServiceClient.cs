@@ -117,12 +117,13 @@ public class QuoteServiceClient : IQuoteServiceClient
         }
     }
 
-    public async Task<bool> ApproveQuoteAsync(string quoteNumber)
+    public async Task<bool> ApproveQuoteAsync(string quoteNumber, bool simulateError = false)
     {
         try
         {
             var soapBody = $@"<legacy:ApproveQuoteRequest>
                 <legacy:QuoteNumber>{EscapeXml(quoteNumber)}</legacy:QuoteNumber>
+                <legacy:SimulateError>{simulateError.ToString().ToLower()}</legacy:SimulateError>
             </legacy:ApproveQuoteRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);
