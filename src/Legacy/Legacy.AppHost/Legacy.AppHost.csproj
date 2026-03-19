@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" Version="13.0.0" />
-    <PackageReference Include="Aspire.Hosting.Yarp" Version="13.0.0" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="9.3.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,6 +19,7 @@
     <ProjectReference Include="..\Legacy.PolicyService\Legacy.PolicyService.csproj" />
     <ProjectReference Include="..\Legacy.ClaimsService\Legacy.ClaimsService.csproj" />
     <ProjectReference Include="..\Legacy.PricingRulesService\Legacy.PricingRulesService.csproj" />
+    <ProjectReference Include="..\Legacy.Gateway\Legacy.Gateway.csproj" />
     <ProjectReference Include="..\..\Frontend\SeguroAuto.Web\SeguroAuto.Web.csproj" />
     <ProjectReference Include="..\Legacy.DbTelemetryWorker\Legacy.DbTelemetryWorker.csproj" />
   </ItemGroup>

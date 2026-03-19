@@ -225,12 +225,12 @@ public class QuoteService : IQuoteService
         {
             // Passo 1: operação de negócio - INSERT do quote
             _context.Database.ExecuteSqlRaw(@"
-                INSERT INTO Quotes (QuoteNumber, CustomerId, VehiclePlate, VehicleModel,
-                                    VehicleYear, Premium, Status, ValidUntil, CreatedAt)
+                INSERT INTO ""Quotes"" (""QuoteNumber"", ""CustomerId"", ""VehiclePlate"", ""VehicleModel"",
+                                    ""VehicleYear"", ""Premium"", ""Status"", ""ValidUntil"", ""CreatedAt"")
                 VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})",
                 quoteNumber, customerId, vehiclePlate, vehicleModel,
                 vehicleYear, premium, (int)QuoteStatus.Pending,
-                now.AddDays(30).ToString("o"), now.ToString("o"));
+                now.AddDays(30), now);
 
             var endedAt = DateTime.UtcNow;
 
@@ -245,11 +245,11 @@ public class QuoteService : IQuoteService
 
             _context.Database.ExecuteSqlRaw(@"
                 INSERT INTO db_operation_logs
-                    (TraceId, SpanId, OperationName, OperationType, TableName,
-                     Details, StartedAt, EndedAt, Status, Exported)
-                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, 0)",
+                    (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
+                     ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""Exported"")
+                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, false)",
                 traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
-                details, startedAt.ToString("o"), endedAt.ToString("o"), "OK");
+                details, startedAt, endedAt, "OK");
 
             transaction.Commit();
             return quoteNumber;
@@ -264,11 +264,11 @@ public class QuoteService : IQuoteService
             {
                 _context.Database.ExecuteSqlRaw(@"
                     INSERT INTO db_operation_logs
-                        (TraceId, SpanId, OperationName, OperationType, TableName,
-                         Details, StartedAt, EndedAt, Status, ErrorMessage, Exported)
-                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, 0)",
+                        (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
+                         ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""ErrorMessage"", ""Exported"")
+                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, false)",
                     traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
-                    "{}", startedAt.ToString("o"), endedAt.ToString("o"),
+                    "{}", startedAt, endedAt,
                     "ERROR", ex.Message);
             }
             catch { /* telemetria não deve quebrar o fluxo de negócio */ }
@@ -296,7 +296,7 @@ public class QuoteService : IQuoteService
         try
         {
             _context.Database.ExecuteSqlRaw(@"
-                UPDATE Quotes SET Status = {0} WHERE QuoteNumber = {1}",
+                UPDATE ""Quotes"" SET ""Status"" = {0} WHERE ""QuoteNumber"" = {1}",
                 (int)QuoteStatus.Approved, quoteNumber);
 
             var endedAt = DateTime.UtcNow;
@@ -310,11 +310,11 @@ public class QuoteService : IQuoteService
 
             _context.Database.ExecuteSqlRaw(@"
                 INSERT INTO db_operation_logs
-                    (TraceId, SpanId, OperationName, OperationType, TableName,
-                     Details, StartedAt, EndedAt, Status, Exported)
-                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, 0)",
+                    (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
+                     ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""Exported"")
+                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, false)",
                 traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
-                details, startedAt.ToString("o"), endedAt.ToString("o"), "OK");
+                details, startedAt, endedAt, "OK");
 
             transaction.Commit();
             return true;
@@ -328,11 +328,11 @@ public class QuoteService : IQuoteService
             {
                 _context.Database.ExecuteSqlRaw(@"
                     INSERT INTO db_operation_logs
-                        (TraceId, SpanId, OperationName, OperationType, TableName,
-                         Details, StartedAt, EndedAt, Status, ErrorMessage, Exported)
-                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, 0)",
+                        (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
+                         ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""ErrorMessage"", ""Exported"")
+                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, false)",
                     traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
-                    "{}", startedAt.ToString("o"), endedAt.ToString("o"),
+                    "{}", startedAt, endedAt,
                     "ERROR", ex.Message);
             }
             catch { /* telemetria não deve quebrar o fluxo de negócio */ }

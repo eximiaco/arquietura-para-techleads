@@ -20,50 +20,41 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPIRE_ALLOW_UNSECU
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Banco de dados SQLite - caminho absoluto baseado no diretório do projeto
-var defaultDbPath = Path.Combine(
-    Directory.GetCurrentDirectory(),
-    "..", "..", "..", "..", "data", "legacy.db"
-);
-var dbPath = Path.GetFullPath(builder.Configuration["DB_PATH"] ?? defaultDbPath);
-
-// Garante que o diretório existe
-var dbDirectory = Path.GetDirectoryName(dbPath);
-if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
-{
-    Directory.CreateDirectory(dbDirectory);
-}
+// PostgreSQL gerenciado pelo Aspire - sobe container automaticamente
+var postgres = builder.AddPostgres("postgres")
+    .WithDataVolume();
+var legacyDb = postgres.AddDatabase("legacydb");
 
 // Serviços Legacy
 // IMPORTANTE: Usar WithHttpEndpoint() SEM especificar porta força o Aspire
 // a atribuir portas dinâmicas automaticamente para cada serviço
 var quoteService = builder.AddProject<Projects.Legacy_QuoteService>("quote-service")
-    .WithHttpEndpoint() // Força o Aspire a gerenciar a porta dinamicamente
-    .WithEnvironment("DB_PATH", dbPath)
+    .WithHttpEndpoint()
+    .WithReference(legacyDb)
     .WithEnvironment("DATASET_SEED", builder.Configuration["DATASET_SEED"] ?? "1001")
     .WithEnvironment("DATASET_PROFILE", builder.Configuration["DATASET_PROFILE"] ?? "legacy")
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
     .WithEnvironment("FAULT_DELAY_MS", builder.Configuration["FAULT_DELAY_MS"] ?? "300");
 
 var policyService = builder.AddProject<Projects.Legacy_PolicyService>("policy-service")
-    .WithHttpEndpoint() // Força o Aspire a gerenciar a porta dinamicamente
-    .WithEnvironment("DB_PATH", dbPath)
+    .WithHttpEndpoint()
+    .WithReference(legacyDb)
     .WithEnvironment("DATASET_SEED", builder.Configuration["DATASET_SEED"] ?? "1001")
     .WithEnvironment("DATASET_PROFILE", builder.Configuration["DATASET_PROFILE"] ?? "legacy")
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
     .WithEnvironment("FAULT_DELAY_MS", builder.Configuration["FAULT_DELAY_MS"] ?? "300");
 
 var claimsService = builder.AddProject<Projects.Legacy_ClaimsService>("claims-service")
-    .WithHttpEndpoint() // Força o Aspire a gerenciar a porta dinamicamente
-    .WithEnvironment("DB_PATH", dbPath)
+    .WithHttpEndpoint()
+    .WithReference(legacyDb)
     .WithEnvironment("DATASET_SEED", builder.Configuration["DATASET_SEED"] ?? "1001")
     .WithEnvironment("DATASET_PROFILE", builder.Configuration["DATASET_PROFILE"] ?? "legacy")
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
     .WithEnvironment("FAULT_DELAY_MS", builder.Configuration["FAULT_DELAY_MS"] ?? "300");
 
 var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService>("pricing-rules-service")
-    .WithHttpEndpoint() // Força o Aspire a gerenciar a porta dinamicamente
-    .WithEnvironment("DB_PATH", dbPath)
+    .WithHttpEndpoint()
+    .WithReference(legacyDb)
     .WithEnvironment("DATASET_SEED", builder.Configuration["DATASET_SEED"] ?? "1001")
     .WithEnvironment("DATASET_PROFILE", builder.Configuration["DATASET_PROFILE"] ?? "legacy")
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
@@ -71,41 +62,23 @@ var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService
 
 // Worker de telemetria de banco - lê db_operation_logs e exporta spans via OTLP
 var dbTelemetryWorker = builder.AddProject<Projects.Legacy_DbTelemetryWorker>("db-telemetry-worker")
-    .WithEnvironment("DB_PATH", dbPath);
+    .WithReference(legacyDb);
 
 // Frontend MVC - consome os serviços Legacy através do Gateway
-// DEVE ser definido ANTES do Gateway para poder ser referenciado nas rotas
 var frontend = builder.AddProject<Projects.SeguroAuto_Web>("frontend")
     .WithHttpEndpoint();
-    
-// Nota: A referência ao gateway será adicionada depois que o gateway for criado
 
-// Gateway Legacy usando AddYarp() nativo do Aspire
-// Expõe todos os serviços Legacy e o Frontend através de uma única porta FIXA (15100)
-// Usa service discovery automático do Aspire - sem problemas de HttpSys!
-// Porta fixa facilita testes e uso dos arquivos .http
-// IMPORTANTE: AddYarp() cria automaticamente um endpoint HTTP chamado "http"
-// Para definir porta fixa, precisamos usar WithEndpoint explicitamente
-var gateway = builder.AddYarp("gateway")
-    .WithEndpoint("http", endpoint =>
-    {
-        endpoint.Port = 15100;
-    })
-    .WithConfiguration(yarp =>
-    {
-        // Rotas para serviços SOAP (devem vir antes da rota catch-all do frontend)
-        yarp.AddRoute("/QuoteService.svc/{**catch-all}", quoteService);
-        yarp.AddRoute("/PolicyService.svc/{**catch-all}", policyService);
-        yarp.AddRoute("/ClaimsService.svc/{**catch-all}", claimsService);
-        yarp.AddRoute("/PricingRulesService.svc/{**catch-all}", pricingRulesService);
-        
-        // Rota para o frontend - captura todas as outras requisições
-        // IMPORTANTE: Esta rota deve ser a última para não interceptar as rotas SOAP
-        yarp.AddRoute("/{**catch-all}", frontend);
-    });
+// Gateway Legacy (YARP) - porta fixa 15100
+// Usa service discovery do Aspire para descobrir serviços automaticamente
+var gateway = builder.AddProject<Projects.Legacy_Gateway>("gateway")
+    .WithHttpEndpoint(port: 15100)
+    .WithReference(quoteService)
+    .WithReference(policyService)
+    .WithReference(claimsService)
+    .WithReference(pricingRulesService)
+    .WithReference(frontend);
 
-// Adiciona referência do frontend ao gateway para service discovery
-// Isso garante que a variável services__gateway__http__0 seja injetada no frontend
+// Injeta URL do gateway no frontend para os SOAP clients
 frontend.WithReference(gateway);
 
 builder.Build().Run();

@@ -89,7 +89,7 @@ public class DbTelemetryBackgroundService : BackgroundService
         activity.SetStartTime(log.StartedAt.ToUniversalTime());
 
         // Tags semânticas OpenTelemetry para operações de banco
-        activity.SetTag("db.system", "sqlite");
+        activity.SetTag("db.system", "postgresql");
         activity.SetTag("db.operation", log.OperationType);
         activity.SetTag("db.sql.table", log.TableName);
         activity.SetTag("db.operation.name", log.OperationName);
