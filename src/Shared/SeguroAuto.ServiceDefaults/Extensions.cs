@@ -29,6 +29,7 @@ public static class Extensions
                     .AddSource("SeguroAuto.Web.SoapClient")
                     .AddSource("SeguroAuto.FaultInjection")
                     .AddSource("SeguroAuto.Database")
+                    .AddSource("SeguroAuto.Browser")
                     .AddAspNetCoreInstrumentation(options =>
                     {
                         options.RecordException = true;
