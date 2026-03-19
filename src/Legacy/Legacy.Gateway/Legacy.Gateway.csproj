@@ -10,5 +10,9 @@
     <PackageReference Include="Yarp.ReverseProxy" Version="2.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\SeguroAuto.ServiceDefaults\SeguroAuto.ServiceDefaults.csproj" />
+  </ItemGroup>
+
 </Project>
 

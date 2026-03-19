@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Xml;
 using Microsoft.AspNetCore.Builder;
@@ -10,6 +11,7 @@ namespace SeguroAuto.FaultInjection;
 
 public class FaultInjectionMiddleware
 {
+    private static readonly ActivitySource FaultActivitySource = new("SeguroAuto.FaultInjection");
     private readonly RequestDelegate _next;
     private readonly ILogger<FaultInjectionMiddleware> _logger;
     private readonly FaultInjectionOptions _options;
@@ -57,6 +59,10 @@ public class FaultInjectionMiddleware
     {
         if (_options.DelayMs > 0)
         {
+            using var activity = FaultActivitySource.StartActivity("FaultInjection Delay", ActivityKind.Internal);
+            activity?.SetTag("fault.type", "delay");
+            activity?.SetTag("fault.delay_ms", _options.DelayMs);
+
             _logger.LogWarning("Fault Injection: Applying delay of {DelayMs}ms", _options.DelayMs);
             await Task.Delay(_options.DelayMs);
         }
@@ -64,6 +70,11 @@ public class FaultInjectionMiddleware
 
     private async Task HandleErrorAsync(HttpContext context)
     {
+        using var activity = FaultActivitySource.StartActivity("FaultInjection Error", ActivityKind.Internal);
+        activity?.SetTag("fault.type", "error");
+        activity?.SetTag("fault.error_kind", _options.ErrorKind.ToString());
+        activity?.SetStatus(ActivityStatusCode.Error, $"Injected {_options.ErrorKind}");
+
         _logger.LogWarning("Fault Injection: Returning error {ErrorKind}", _options.ErrorKind);
         await ReturnErrorAsync(context, _options.ErrorKind);
     }
@@ -71,6 +82,13 @@ public class FaultInjectionMiddleware
     private async Task HandleChaosAsync(HttpContext context)
     {
         var errorKind = GetRandomErrorKind();
+
+        using var activity = FaultActivitySource.StartActivity("FaultInjection Chaos", ActivityKind.Internal);
+        activity?.SetTag("fault.type", "chaos");
+        activity?.SetTag("fault.error_kind", errorKind.ToString());
+        activity?.SetTag("fault.error_rate", _options.ErrorRate);
+        activity?.SetStatus(ActivityStatusCode.Error, $"Chaos {errorKind}");
+
         _logger.LogWarning("Fault Injection: Chaos mode - returning error {ErrorKind}", errorKind);
         await ReturnErrorAsync(context, errorKind);
     }

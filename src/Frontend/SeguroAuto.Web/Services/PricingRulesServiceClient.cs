@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +8,7 @@ namespace SeguroAuto.Web.Services;
 
 public class PricingRulesServiceClient : IPricingRulesServiceClient
 {
+    private static readonly ActivitySource SoapActivitySource = new("SeguroAuto.Web.SoapClient");
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<PricingRulesServiceClient> _logger;
@@ -103,6 +105,12 @@ public class PricingRulesServiceClient : IPricingRulesServiceClient
 
     private async Task<string> SendSoapRequestAsync(string endpoint, string soapAction, string soapEnvelope)
     {
+        using var activity = SoapActivitySource.StartActivity($"SOAP {soapAction}", ActivityKind.Client);
+        activity?.SetTag("rpc.system", "soap");
+        activity?.SetTag("rpc.service", endpoint);
+        activity?.SetTag("rpc.method", soapAction);
+        activity?.SetTag("server.address", _gatewayUrl);
+
         try
         {
             var httpClient = _httpClientFactory.CreateClient();
@@ -111,12 +119,15 @@ public class PricingRulesServiceClient : IPricingRulesServiceClient
             content.Headers.Add("SOAPAction", $"{Namespace}/{soapAction}");
 
             var response = await httpClient.PostAsync(url, content);
-            
+
+            activity?.SetTag("http.response.status_code", (int)response.StatusCode);
+
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("SOAP request failed with status {StatusCode}. Response: {Response}", 
+                _logger.LogError("SOAP request failed with status {StatusCode}. Response: {Response}",
                     response.StatusCode, errorContent);
+                activity?.SetStatus(ActivityStatusCode.Error, $"HTTP {(int)response.StatusCode}");
                 response.EnsureSuccessStatusCode();
             }
 
@@ -124,6 +135,8 @@ public class PricingRulesServiceClient : IPricingRulesServiceClient
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+
             _logger.LogError(ex, "Unexpected error when calling SOAP endpoint {Endpoint}", endpoint);
             throw;
         }

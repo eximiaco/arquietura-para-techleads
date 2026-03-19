@@ -15,6 +15,7 @@ public class SeguroAutoDbContext : DbContext
     public DbSet<Claim> Claims { get; set; }
     public DbSet<Quote> Quotes { get; set; }
     public DbSet<PricingRule> PricingRules { get; set; }
+    public DbSet<DbOperationLog> DbOperationLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +56,13 @@ public class SeguroAutoDbContext : DbContext
         modelBuilder.Entity<PricingRule>(entity =>
         {
             entity.HasKey(e => e.Id);
+        });
+
+        modelBuilder.Entity<DbOperationLog>(entity =>
+        {
+            entity.ToTable("db_operation_logs");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Exported);
         });
     }
 }

@@ -4,8 +4,12 @@ using CoreWCF.Description;
 using Legacy.ClaimsService;
 using SeguroAuto.Data;
 using SeguroAuto.FaultInjection;
+using SeguroAuto.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry: tracing distribuído + metrics exportados via OTLP para o Aspire Dashboard
+builder.AddServiceDefaults();
 
 builder.Services.AddSeguroAutoData(builder.Configuration);
 builder.Services.AddFaultInjection(builder.Configuration);
@@ -45,6 +49,8 @@ app.UseServiceModel(serviceBuilder =>
             new BasicHttpBinding(),
             "/ClaimsService.svc");
 });
+
+app.MapDefaultEndpoints();
 
 app.Run();
 

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Xml.Linq;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +8,7 @@ namespace SeguroAuto.Web.Services;
 
 public class QuoteServiceClient : IQuoteServiceClient
 {
+    private static readonly ActivitySource SoapActivitySource = new("SeguroAuto.Web.SoapClient");
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<QuoteServiceClient> _logger;
@@ -149,25 +151,35 @@ public class QuoteServiceClient : IQuoteServiceClient
 
     private async Task<string> SendSoapRequestAsync(string endpoint, string soapAction, string soapEnvelope)
     {
+        using var activity = SoapActivitySource.StartActivity($"SOAP {soapAction}", ActivityKind.Client);
+        activity?.SetTag("rpc.system", "soap");
+        activity?.SetTag("rpc.service", endpoint);
+        activity?.SetTag("rpc.method", soapAction);
+        activity?.SetTag("server.address", _gatewayUrl);
+
         try
         {
             var httpClient = _httpClientFactory.CreateClient();
             var url = $"{_gatewayUrl.TrimEnd('/')}{endpoint}";
-            
+
             _logger.LogDebug("Sending SOAP request to {Url} with action {SoapAction}", url, soapAction);
-            
+
             // StringContent: o charset é definido pelo Encoding, não no mediaType
             var content = new StringContent(soapEnvelope, Encoding.UTF8, "text/xml");
             content.Headers.Add("SOAPAction", $"{Namespace}/{soapAction}");
 
             var response = await httpClient.PostAsync(url, content);
-            
+
+            activity?.SetTag("http.response.status_code", (int)response.StatusCode);
+
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("SOAP request failed with status {StatusCode}. URL: {Url}, SOAPAction: {SoapAction}. Response: {Response}", 
+                _logger.LogError("SOAP request failed with status {StatusCode}. URL: {Url}, SOAPAction: {SoapAction}. Response: {Response}",
                     response.StatusCode, url, soapAction, errorContent);
-                
+
+                activity?.SetStatus(ActivityStatusCode.Error, $"HTTP {(int)response.StatusCode}");
+
                 // Para erro 500, tentar extrair mensagem de erro do SOAP Fault se possível
                 if (response.StatusCode == System.Net.HttpStatusCode.InternalServerError && errorContent.Contains("Fault"))
                 {
@@ -178,10 +190,11 @@ public class QuoteServiceClient : IQuoteServiceClient
                             .FirstOrDefault(e => e.Name.LocalName == "faultstring")?.Value
                          ?? faultDoc.Descendants()
                             .FirstOrDefault(e => e.Name.LocalName == "FaultString")?.Value;
-                        
+
                         if (!string.IsNullOrEmpty(faultString))
                         {
                             _logger.LogError("SOAP Fault message: {FaultMessage}", faultString);
+                            activity?.SetTag("soap.fault", faultString);
                             throw new InvalidOperationException($"SOAP service error: {faultString}");
                         }
                     }
@@ -190,28 +203,32 @@ public class QuoteServiceClient : IQuoteServiceClient
                         // Se não conseguir parsear o fault, continua com o erro genérico
                     }
                 }
-                
+
                 response.EnsureSuccessStatusCode();
             }
 
             var responseContent = await response.Content.ReadAsStringAsync();
-            
+
             // Log completo da resposta para diagnóstico (limitado a 1000 caracteres)
-            var logContent = responseContent.Length > 1000 
-                ? responseContent.Substring(0, 1000) + "..." 
+            var logContent = responseContent.Length > 1000
+                ? responseContent.Substring(0, 1000) + "..."
                 : responseContent;
-            _logger.LogInformation("SOAP response received (length: {Length}): {Response}", 
+            _logger.LogInformation("SOAP response received (length: {Length}): {Response}",
                 responseContent.Length, logContent);
-            
+
             return responseContent;
         }
         catch (HttpRequestException ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+
             _logger.LogError(ex, "HTTP error when calling SOAP endpoint {Endpoint}", endpoint);
             throw new InvalidOperationException($"Failed to call SOAP service at {_gatewayUrl}{endpoint}. Check if the gateway is running and accessible.", ex);
         }
         catch (Exception ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+
             _logger.LogError(ex, "Unexpected error when calling SOAP endpoint {Endpoint}", endpoint);
             throw;
         }

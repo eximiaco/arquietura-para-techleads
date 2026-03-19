@@ -69,6 +69,10 @@ var pricingRulesService = builder.AddProject<Projects.Legacy_PricingRulesService
     .WithEnvironment("FAULT_MODE", builder.Configuration["FAULT_MODE"] ?? "delay")
     .WithEnvironment("FAULT_DELAY_MS", builder.Configuration["FAULT_DELAY_MS"] ?? "300");
 
+// Worker de telemetria de banco - lê db_operation_logs e exporta spans via OTLP
+var dbTelemetryWorker = builder.AddProject<Projects.Legacy_DbTelemetryWorker>("db-telemetry-worker")
+    .WithEnvironment("DB_PATH", dbPath);
+
 // Frontend MVC - consome os serviços Legacy através do Gateway
 // DEVE ser definido ANTES do Gateway para poder ser referenciado nas rotas
 var frontend = builder.AddProject<Projects.SeguroAuto_Web>("frontend")

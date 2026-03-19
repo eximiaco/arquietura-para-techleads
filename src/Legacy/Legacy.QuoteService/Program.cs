@@ -5,8 +5,12 @@ using Legacy.QuoteService;
 using Microsoft.EntityFrameworkCore;
 using SeguroAuto.Data;
 using SeguroAuto.FaultInjection;
+using SeguroAuto.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry: tracing distribuído + metrics exportados via OTLP para o Aspire Dashboard
+builder.AddServiceDefaults();
 
 // Configuração de dados
 builder.Services.AddSeguroAutoData(builder.Configuration);
@@ -51,6 +55,8 @@ app.UseServiceModel(serviceBuilder =>
             new BasicHttpBinding(),
             "/QuoteService.svc");
 });
+
+app.MapDefaultEndpoints();
 
 app.Run();
 

@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.ServiceModel;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using SeguroAuto.Data;
 using SeguroAuto.Domain;
@@ -59,32 +61,26 @@ public class QuoteService : IQuoteService
             // Aplica regras de pricing
             var finalPremium = ApplyPricingRules(basePremium, request, customer);
 
-            var quote = new Quote
-            {
-                QuoteNumber = $"QUOTE-{DateTime.UtcNow:yyyyMMddHHmmss}",
-                CustomerId = request.CustomerId,
-                VehiclePlate = request.VehiclePlate ?? string.Empty,
-                VehicleModel = request.VehicleModel ?? string.Empty,
-                VehicleYear = request.VehicleYear,
-                Premium = finalPremium,
-                Status = QuoteStatus.Pending,
-                ValidUntil = DateTime.UtcNow.AddDays(30),
-                CreatedAt = DateTime.UtcNow
-            };
+            // Executa "stored procedure" simulada via raw SQL, passando correlation_id
+            var quoteNumber = ExecuteCreateQuoteProcedure(
+                request.CustomerId,
+                request.VehiclePlate ?? string.Empty,
+                request.VehicleModel ?? string.Empty,
+                request.VehicleYear,
+                finalPremium);
 
-            _context.Quotes.Add(quote);
-            _context.SaveChanges();
+            var validUntil = DateTime.UtcNow.AddDays(30);
 
-            _logger.LogInformation("Quote created: {QuoteNumber} for CustomerId: {CustomerId} with Premium: {Premium}", 
-                quote.QuoteNumber, request.CustomerId, quote.Premium);
+            _logger.LogInformation("Quote created: {QuoteNumber} for CustomerId: {CustomerId} with Premium: {Premium}",
+                quoteNumber, request.CustomerId, finalPremium);
 
             return new QuoteResponse
             {
-                QuoteNumber = quote.QuoteNumber,
-                CustomerId = quote.CustomerId,
-                Premium = quote.Premium,
-                ValidUntil = quote.ValidUntil,
-                Status = quote.Status.ToString()
+                QuoteNumber = quoteNumber,
+                CustomerId = request.CustomerId,
+                Premium = finalPremium,
+                ValidUntil = validUntil,
+                Status = QuoteStatus.Pending.ToString()
             };
         }
         catch (FaultException)
@@ -137,19 +133,14 @@ public class QuoteService : IQuoteService
         {
             _logger.LogInformation("ApproveQuote called for QuoteNumber: {QuoteNumber}", request.QuoteNumber);
 
-            var quote = _context.Quotes.FirstOrDefault(q => q.QuoteNumber == request.QuoteNumber);
-            if (quote == null)
-            {
+            var success = ExecuteApproveQuoteProcedure(request.QuoteNumber);
+
+            if (success)
+                _logger.LogInformation("Quote approved: {QuoteNumber}", request.QuoteNumber);
+            else
                 _logger.LogWarning("Quote not found: {QuoteNumber}", request.QuoteNumber);
-                return new ApproveQuoteResponse { Success = false };
-            }
 
-            quote.Status = QuoteStatus.Approved;
-            _context.SaveChanges();
-
-            _logger.LogInformation("Quote approved: {QuoteNumber}", request.QuoteNumber);
-
-            return new ApproveQuoteResponse { Success = true };
+            return new ApproveQuoteResponse { Success = success };
         }
         catch (Exception ex)
         {
@@ -211,6 +202,143 @@ public class QuoteService : IQuoteService
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Simula uma stored procedure que recebe o correlation_id (trace context),
+    /// executa a operação de negócio e loga na tabela db_operation_logs.
+    /// </summary>
+    private string ExecuteCreateQuoteProcedure(
+        int customerId, string vehiclePlate, string vehicleModel,
+        int vehicleYear, decimal premium)
+    {
+        var activity = Activity.Current;
+        var traceId = activity?.TraceId.ToString() ?? "";
+        var spanId = activity?.SpanId.ToString() ?? "";
+
+        var quoteNumber = $"QUOTE-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        var now = DateTime.UtcNow;
+        var startedAt = now;
+
+        using var transaction = _context.Database.BeginTransaction();
+        try
+        {
+            // Passo 1: operação de negócio - INSERT do quote
+            _context.Database.ExecuteSqlRaw(@"
+                INSERT INTO Quotes (QuoteNumber, CustomerId, VehiclePlate, VehicleModel,
+                                    VehicleYear, Premium, Status, ValidUntil, CreatedAt)
+                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})",
+                quoteNumber, customerId, vehiclePlate, vehicleModel,
+                vehicleYear, premium, (int)QuoteStatus.Pending,
+                now.AddDays(30).ToString("o"), now.ToString("o"));
+
+            var endedAt = DateTime.UtcNow;
+
+            // Passo 2: a "procedure" loga a operação com o correlation_id
+            var details = JsonSerializer.Serialize(new
+            {
+                quote_number = quoteNumber,
+                customer_id = customerId,
+                vehicle_model = vehicleModel,
+                premium
+            });
+
+            _context.Database.ExecuteSqlRaw(@"
+                INSERT INTO db_operation_logs
+                    (TraceId, SpanId, OperationName, OperationType, TableName,
+                     Details, StartedAt, EndedAt, Status, Exported)
+                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, 0)",
+                traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
+                details, startedAt.ToString("o"), endedAt.ToString("o"), "OK");
+
+            transaction.Commit();
+            return quoteNumber;
+        }
+        catch (Exception ex)
+        {
+            var endedAt = DateTime.UtcNow;
+            transaction.Rollback();
+
+            // Loga erro na tabela de telemetria (fora da transaction)
+            try
+            {
+                _context.Database.ExecuteSqlRaw(@"
+                    INSERT INTO db_operation_logs
+                        (TraceId, SpanId, OperationName, OperationType, TableName,
+                         Details, StartedAt, EndedAt, Status, ErrorMessage, Exported)
+                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, 0)",
+                    traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
+                    "{}", startedAt.ToString("o"), endedAt.ToString("o"),
+                    "ERROR", ex.Message);
+            }
+            catch { /* telemetria não deve quebrar o fluxo de negócio */ }
+
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Simula stored procedure de aprovação com correlation_id.
+    /// </summary>
+    private bool ExecuteApproveQuoteProcedure(string quoteNumber)
+    {
+        var activity = Activity.Current;
+        var traceId = activity?.TraceId.ToString() ?? "";
+        var spanId = activity?.SpanId.ToString() ?? "";
+
+        var startedAt = DateTime.UtcNow;
+
+        var quote = _context.Quotes.FirstOrDefault(q => q.QuoteNumber == quoteNumber);
+        if (quote == null)
+            return false;
+
+        using var transaction = _context.Database.BeginTransaction();
+        try
+        {
+            _context.Database.ExecuteSqlRaw(@"
+                UPDATE Quotes SET Status = {0} WHERE QuoteNumber = {1}",
+                (int)QuoteStatus.Approved, quoteNumber);
+
+            var endedAt = DateTime.UtcNow;
+
+            var details = JsonSerializer.Serialize(new
+            {
+                quote_number = quoteNumber,
+                previous_status = quote.Status.ToString(),
+                new_status = QuoteStatus.Approved.ToString()
+            });
+
+            _context.Database.ExecuteSqlRaw(@"
+                INSERT INTO db_operation_logs
+                    (TraceId, SpanId, OperationName, OperationType, TableName,
+                     Details, StartedAt, EndedAt, Status, Exported)
+                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, 0)",
+                traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
+                details, startedAt.ToString("o"), endedAt.ToString("o"), "OK");
+
+            transaction.Commit();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            var endedAt = DateTime.UtcNow;
+            transaction.Rollback();
+
+            try
+            {
+                _context.Database.ExecuteSqlRaw(@"
+                    INSERT INTO db_operation_logs
+                        (TraceId, SpanId, OperationName, OperationType, TableName,
+                         Details, StartedAt, EndedAt, Status, ErrorMessage, Exported)
+                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, 0)",
+                    traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
+                    "{}", startedAt.ToString("o"), endedAt.ToString("o"),
+                    "ERROR", ex.Message);
+            }
+            catch { /* telemetria não deve quebrar o fluxo de negócio */ }
+
+            throw;
+        }
     }
 }
 

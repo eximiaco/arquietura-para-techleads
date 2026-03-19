@@ -44,6 +44,26 @@ public static class ServiceCollectionExtensions
         // Garante que o banco está criado
         await context.Database.EnsureCreatedAsync();
 
+        // Garante que a tabela de telemetria existe (idempotente para DBs pré-existentes)
+        await context.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS db_operation_logs (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                TraceId TEXT NOT NULL,
+                SpanId TEXT NOT NULL,
+                OperationName TEXT NOT NULL,
+                OperationType TEXT NOT NULL,
+                TableName TEXT NOT NULL,
+                Details TEXT,
+                StartedAt TEXT NOT NULL,
+                EndedAt TEXT NOT NULL,
+                Status TEXT NOT NULL DEFAULT 'OK',
+                ErrorMessage TEXT,
+                Exported INTEGER NOT NULL DEFAULT 0
+            )");
+        await context.Database.ExecuteSqlRawAsync(@"
+            CREATE INDEX IF NOT EXISTS ix_db_operation_logs_exported
+            ON db_operation_logs (Exported) WHERE Exported = 0");
+
         // Executa seeding
         var seed = int.Parse(configuration["DATASET_SEED"] ?? "1001");
         var profile = configuration["DATASET_PROFILE"] ?? "legacy";

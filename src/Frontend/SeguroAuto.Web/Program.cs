@@ -1,3 +1,4 @@
+using SeguroAuto.ServiceDefaults;
 using SeguroAuto.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -5,6 +6,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Configurar IConfiguration para ler variáveis de ambiente
 // O Aspire injeta variáveis de ambiente que precisam ser lidas
 builder.Configuration.AddEnvironmentVariables();
+
+// OpenTelemetry: tracing distribuído + metrics exportados via OTLP para o Aspire Dashboard
+builder.AddServiceDefaults();
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -41,6 +45,8 @@ app.UseAuthorization();
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapDefaultEndpoints();
 
 app.Run();
 

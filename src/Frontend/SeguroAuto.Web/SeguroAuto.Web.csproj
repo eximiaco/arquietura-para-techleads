@@ -10,5 +10,9 @@
     <PackageReference Include="System.ServiceModel.Primitives" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\SeguroAuto.ServiceDefaults\SeguroAuto.ServiceDefaults.csproj" />
+  </ItemGroup>
+
 </Project>
 

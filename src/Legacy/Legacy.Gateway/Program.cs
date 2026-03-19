@@ -1,6 +1,10 @@
 using Microsoft.Extensions.Configuration;
+using SeguroAuto.ServiceDefaults;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry: tracing distribuído + metrics exportados via OTLP para o Aspire Dashboard
+builder.AddServiceDefaults();
 
 // Configurar YARP dinamicamente usando variáveis de ambiente do Aspire
 // O Aspire injeta variáveis no formato: services__{service-name}__{endpoint-name}__{index}
@@ -89,6 +93,8 @@ app.UseRouting();
 
 // 2. YARP Reverse Proxy - roteia requisições para os serviços backend
 app.MapReverseProxy();
+
+app.MapDefaultEndpoints();
 
 app.Run();
 
