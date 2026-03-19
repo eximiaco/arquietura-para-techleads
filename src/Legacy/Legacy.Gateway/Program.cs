@@ -98,13 +98,13 @@ app.MapGet("/gateway/status", () => Results.Ok(new
 }));
 
 // Endpoint para alternar Blue/Green em runtime
-app.MapPost("/gateway/routing/{mode}", (string mode, InMemoryConfigProvider configProvider) =>
+app.MapPost("/gateway/routing/{mode}", (string mode) =>
 {
     if (mode != "blue" && mode != "green")
         return Results.BadRequest(new { error = "Mode must be 'blue' or 'green'" });
 
     routingMode = mode;
-    configProvider.Update(BuildRoutes(routingMode), BuildClusters());
+    inMemoryConfig.Update(BuildRoutes(routingMode), BuildClusters());
 
     Console.WriteLine($"[Gateway] Routing mode changed to: {routingMode}");
     return Results.Ok(new
