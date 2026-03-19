@@ -53,8 +53,21 @@
             }
             @if (TempData["Error"] != null)
             {
+                var errorMsg = TempData["Error"]!.ToString()!;
+                var correlationIdx = errorMsg.IndexOf("CorrelationId:");
                 <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
-                    @TempData["Error"]
+                    @if (correlationIdx >= 0)
+                    {
+                        @errorMsg.Substring(0, correlationIdx)
+                        <br/>
+                        <small class="text-muted">
+                            CorrelationId: <code style="user-select:all; cursor:pointer;" title="Clique para selecionar e copiar">@errorMsg.Substring(correlationIdx + "CorrelationId: ".Length)</code>
+                        </small>
+                    }
+                    else
+                    {
+                        @errorMsg
+                    }
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             }

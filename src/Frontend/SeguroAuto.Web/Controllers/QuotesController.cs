@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using SeguroAuto.Web.Models;
 using SeguroAuto.Web.Services;
@@ -38,8 +39,10 @@ public class QuotesController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading quotes for CustomerId: {CustomerId}", customerId);
-            TempData["Error"] = "Erro ao carregar cotações. Tente novamente.";
+            var correlationId = Activity.Current?.TraceId.ToString() ?? "";
+            _logger.LogError(ex, "Error loading quotes for CustomerId: {CustomerId}, CorrelationId: {CorrelationId}",
+                customerId, correlationId);
+            TempData["Error"] = $"Erro ao carregar cotações. CorrelationId: {correlationId}";
             return View(new List<QuoteViewModel>());
         }
     }
@@ -72,8 +75,9 @@ public class QuotesController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating quote");
-            ModelState.AddModelError("", "Erro ao criar cotação. Tente novamente.");
+            var correlationId = Activity.Current?.TraceId.ToString() ?? "";
+            _logger.LogError(ex, "Error creating quote. CorrelationId: {CorrelationId}", correlationId);
+            ModelState.AddModelError("", $"Erro ao criar cotação. CorrelationId: {correlationId}");
             return View(model);
         }
     }
@@ -99,11 +103,12 @@ public class QuotesController : Controller
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error approving quote: {QuoteNumber}, SimulateError: {SimulateError}",
-                quoteNumber, simulateError);
+            var correlationId = Activity.Current?.TraceId.ToString() ?? "";
+            _logger.LogError(ex, "Error approving quote: {QuoteNumber}, SimulateError: {SimulateError}, CorrelationId: {CorrelationId}",
+                quoteNumber, simulateError, correlationId);
             TempData["Error"] = simulateError
-                ? $"Erro simulado na aprovação da cotação {quoteNumber} (visível no tracing)."
-                : "Erro ao aprovar cotação. Tente novamente.";
+                ? $"Erro simulado na aprovação da cotação {quoteNumber}. CorrelationId: {correlationId}"
+                : $"Erro ao aprovar cotação. CorrelationId: {correlationId}";
             return RedirectToAction(nameof(Index), new { customerId = customerId ?? 999 });
         }
     }
