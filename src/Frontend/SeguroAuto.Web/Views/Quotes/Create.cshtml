@@ -38,6 +38,10 @@
             
             <div class="mb-3">
                 <button type="submit" class="btn btn-primary">Criar Cotação</button>
+                <button type="submit" name="simulateError" value="true" class="btn btn-danger"
+                        title="Simula erro na procedure do banco (visível no tracing via worker)">
+                    Criar com Erro no Banco
+                </button>
                 <a asp-action="Index" class="btn btn-secondary">Cancelar</a>
             </div>
         </form>

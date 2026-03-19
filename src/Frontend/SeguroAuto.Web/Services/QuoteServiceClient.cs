@@ -52,7 +52,7 @@ public class QuoteServiceClient : IQuoteServiceClient
         _logger.LogInformation("QuoteServiceClient initialized with Gateway URL: {GatewayUrl}", _gatewayUrl);
     }
 
-    public async Task<QuoteResponse> GetQuoteAsync(int customerId, string vehiclePlate, string vehicleModel, int vehicleYear)
+    public async Task<QuoteResponse> GetQuoteAsync(int customerId, string vehiclePlate, string vehicleModel, int vehicleYear, bool simulateError = false)
     {
         try
         {
@@ -62,23 +62,22 @@ public class QuoteServiceClient : IQuoteServiceClient
                 _logger.LogWarning("VehicleModel is null or empty for CustomerId: {CustomerId}", customerId);
                 throw new ArgumentException("VehicleModel is required", nameof(vehicleModel));
             }
-            
+
             if (string.IsNullOrWhiteSpace(vehiclePlate))
             {
                 _logger.LogWarning("VehiclePlate is null or empty for CustomerId: {CustomerId}", customerId);
                 throw new ArgumentException("VehiclePlate is required", nameof(vehiclePlate));
             }
-            
-            _logger.LogInformation("Creating quote request - CustomerId: {CustomerId}, Plate: {Plate}, Model: {Model}, Year: {Year}", 
-                customerId, vehiclePlate, vehicleModel, vehicleYear);
-            
-            // IMPORTANTE: Usar o formato EXATO do Legacy-Services.http que funciona
-            // O namespace legacy deve ser definido no Envelope, não no elemento QuoteRequest
+
+            _logger.LogInformation("Creating quote request - CustomerId: {CustomerId}, Plate: {Plate}, Model: {Model}, Year: {Year}, SimulateError: {SimulateError}",
+                customerId, vehiclePlate, vehicleModel, vehicleYear, simulateError);
+
             var soapBody = $@"<legacy:QuoteRequest>
                 <legacy:CustomerId>{customerId}</legacy:CustomerId>
                 <legacy:VehiclePlate>{EscapeXml(vehiclePlate)}</legacy:VehiclePlate>
                 <legacy:VehicleModel>{EscapeXml(vehicleModel)}</legacy:VehicleModel>
                 <legacy:VehicleYear>{vehicleYear}</legacy:VehicleYear>
+                <legacy:SimulateError>{simulateError.ToString().ToLower()}</legacy:SimulateError>
             </legacy:QuoteRequest>";
 
             var soapEnvelope = BuildSoapEnvelope(soapBody);

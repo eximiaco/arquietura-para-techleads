@@ -29,6 +29,9 @@ public class QuoteRequest
 
     [MessageBodyMember(Order = 4)]
     public int VehicleYear { get; set; }
+
+    [MessageBodyMember(Order = 5)]
+    public bool SimulateError { get; set; }
 }
 
 [MessageContract]

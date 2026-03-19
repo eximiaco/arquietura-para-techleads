@@ -55,7 +55,7 @@ public class QuotesController : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Create(QuoteCreateViewModel model)
+    public async Task<IActionResult> Create(QuoteCreateViewModel model, bool simulateError = false)
     {
         if (!ModelState.IsValid)
         {
@@ -70,15 +70,20 @@ public class QuotesController : Controller
                 model.CustomerId,
                 model.VehiclePlate,
                 model.VehicleModel,
-                model.VehicleYear);
+                model.VehicleYear,
+                simulateError);
 
             TempData["Success"] = $"Cotação {quote.QuoteNumber} criada com sucesso!";
             return RedirectToAction(nameof(Index), new { customerId = model.CustomerId });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating quote. CorrelationId: {CorrelationId}", correlationId);
-            ModelState.AddModelError("", $"Erro ao criar cotação. CorrelationId: {correlationId}");
+            _logger.LogError(ex, "Error creating quote. SimulateError: {SimulateError}, CorrelationId: {CorrelationId}",
+                simulateError, correlationId);
+            var errorMsg = simulateError
+                ? $"Erro simulado na procedure do banco ao criar cotação. CorrelationId: {correlationId}"
+                : $"Erro ao criar cotação. CorrelationId: {correlationId}";
+            ModelState.AddModelError("", errorMsg);
             return View(model);
         }
     }

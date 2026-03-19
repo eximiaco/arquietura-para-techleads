@@ -67,7 +67,8 @@ public class QuoteService : IQuoteService
                 request.VehiclePlate ?? string.Empty,
                 request.VehicleModel ?? string.Empty,
                 request.VehicleYear,
-                finalPremium);
+                finalPremium,
+                request.SimulateError);
 
             var validUntil = DateTime.UtcNow.AddDays(30);
 
@@ -295,21 +296,24 @@ public class QuoteService : IQuoteService
     /// </summary>
     private string ExecuteCreateQuoteProcedure(
         int customerId, string vehiclePlate, string vehicleModel,
-        int vehicleYear, decimal premium)
+        int vehicleYear, decimal premium, bool simulateError = false)
     {
         var activity = Activity.Current;
         var traceId = activity?.TraceId.ToString() ?? "";
         var spanId = activity?.SpanId.ToString() ?? "";
+
+        activity?.SetTag("quote.simulate_error", simulateError);
 
         var quoteNumber = $"QUOTE-{DateTime.UtcNow:yyyyMMddHHmmss}";
         var now = DateTime.UtcNow;
         var startedAt = now;
 
         using var transaction = _context.Database.BeginTransaction();
+        PgSessionInfo? session = null;
         try
         {
             // Captura informações da sessão PostgreSQL dentro da transaction
-            var session = GetPgSessionInfo();
+            session = GetPgSessionInfo();
 
             // Passo 1: operação de negócio - INSERT do quote
             _context.Database.ExecuteSqlRaw(@"
@@ -320,9 +324,19 @@ public class QuoteService : IQuoteService
                 vehicleYear, premium, (int)QuoteStatus.Pending,
                 now.AddDays(30), now);
 
+            // Passo 2: simula erro DENTRO da procedure (após o INSERT, dentro da transaction)
+            // O erro acontece no banco — a proc loga o erro e faz rollback
+            if (simulateError)
+            {
+                _logger.LogWarning("sp_create_quote: Simulating database error for quote {QuoteNumber}", quoteNumber);
+                // Executa SQL inválido para gerar exception real do PostgreSQL
+                _context.Database.ExecuteSqlRaw(
+                    @"SELECT * FROM ""tabela_inexistente_erro_simulado""");
+            }
+
             var endedAt = DateTime.UtcNow;
 
-            // Passo 2: loga a operação com correlation_id + sessão PostgreSQL
+            // Passo 3: loga a operação com correlation_id + sessão PostgreSQL
             var details = JsonSerializer.Serialize(new
             {
                 quote_number = quoteNumber,
@@ -342,10 +356,20 @@ public class QuoteService : IQuoteService
             var endedAt = DateTime.UtcNow;
             transaction.Rollback();
 
+            // A proc loga o erro no db_operation_logs — o worker captura e exibe no tracing
             try
             {
+                var errorDetails = JsonSerializer.Serialize(new
+                {
+                    quote_number = quoteNumber,
+                    customer_id = customerId,
+                    vehicle_model = vehicleModel,
+                    premium,
+                    simulated_error = simulateError
+                });
+
                 LogDbOperation(traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
-                    "{}", startedAt, endedAt, "ERROR", ex.Message, null);
+                    errorDetails, startedAt, endedAt, "ERROR", ex.Message, session);
             }
             catch { /* telemetria não deve quebrar o fluxo de negócio */ }
 

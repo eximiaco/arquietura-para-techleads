@@ -2,7 +2,7 @@ namespace SeguroAuto.Web.Services;
 
 public interface IQuoteServiceClient
 {
-    Task<QuoteResponse> GetQuoteAsync(int customerId, string vehiclePlate, string vehicleModel, int vehicleYear);
+    Task<QuoteResponse> GetQuoteAsync(int customerId, string vehiclePlate, string vehicleModel, int vehicleYear, bool simulateError = false);
     Task<List<QuoteResponse>> GetQuotesByCustomerAsync(int customerId);
     Task<bool> ApproveQuoteAsync(string quoteNumber, bool simulateError = false);
 }
