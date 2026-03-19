@@ -245,23 +245,28 @@ public class QuoteService : IQuoteService
         string operationType, string tableName, string details, DateTime startedAt, DateTime endedAt,
         string status, string? errorMessage, PgSessionInfo? session)
     {
-        _context.Database.ExecuteSqlRaw(@"
-            INSERT INTO db_operation_logs
-                (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
-                 ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""ErrorMessage"", ""Exported"",
-                 ""DbPid"", ""DbTransactionId"", ""DbSessionUser"", ""DbServerIp"",
-                 ""DbServerPort"", ""DbName"", ""DbApplicationName"")
-            VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, false,
-                    {10}, {11}, {12}, {13}, {14}, {15}, {16})",
-            traceId, spanId, operationName, operationType, tableName,
-            details, startedAt, endedAt, status, errorMessage ?? (object)DBNull.Value,
-            session?.Pid ?? (object)DBNull.Value,
-            session?.TransactionId ?? (object)DBNull.Value,
-            session?.SessionUser ?? (object)DBNull.Value,
-            session?.ServerIp ?? (object)DBNull.Value,
-            session?.ServerPort ?? (object)DBNull.Value,
-            session?.DbName ?? (object)DBNull.Value,
-            session?.ApplicationName ?? (object)DBNull.Value);
+        _context.DbOperationLogs.Add(new SeguroAuto.Data.DbOperationLog
+        {
+            TraceId = traceId,
+            SpanId = spanId,
+            OperationName = operationName,
+            OperationType = operationType,
+            TableName = tableName,
+            Details = details,
+            StartedAt = startedAt,
+            EndedAt = endedAt,
+            Status = status,
+            ErrorMessage = errorMessage,
+            Exported = false,
+            DbPid = session?.Pid,
+            DbTransactionId = session?.TransactionId,
+            DbSessionUser = session?.SessionUser,
+            DbServerIp = session?.ServerIp,
+            DbServerPort = session?.ServerPort,
+            DbName = session?.DbName,
+            DbApplicationName = session?.ApplicationName
+        });
+        _context.SaveChanges();
     }
 
     /// <summary>
