@@ -205,8 +205,69 @@ public class QuoteService : IQuoteService
     }
 
     /// <summary>
+    /// Captura informações da sessão PostgreSQL para enriquecer a telemetria.
+    /// Simula o que uma stored procedure real faria internamente.
+    /// </summary>
+    private record PgSessionInfo(int Pid, string TransactionId, string SessionUser,
+        string ServerIp, string ServerPort, string DbName, string ApplicationName);
+
+    private PgSessionInfo GetPgSessionInfo()
+    {
+        using var cmd = _context.Database.GetDbConnection().CreateCommand();
+        cmd.CommandText = @"
+            SELECT pg_backend_pid(),
+                   txid_current()::text,
+                   session_user,
+                   COALESCE(inet_server_addr()::text, 'localhost'),
+                   COALESCE(inet_server_port()::text, '5432'),
+                   current_database(),
+                   current_setting('application_name')";
+
+        if (cmd.Connection!.State != System.Data.ConnectionState.Open)
+            cmd.Connection.Open();
+
+        using var reader = cmd.ExecuteReader();
+        reader.Read();
+        return new PgSessionInfo(
+            Pid: reader.GetInt32(0),
+            TransactionId: reader.GetString(1),
+            SessionUser: reader.GetString(2),
+            ServerIp: reader.GetString(3),
+            ServerPort: reader.GetString(4),
+            DbName: reader.GetString(5),
+            ApplicationName: reader.GetString(6));
+    }
+
+    /// <summary>
+    /// Loga operação na tabela db_operation_logs com trace context e informações da sessão PostgreSQL.
+    /// </summary>
+    private void LogDbOperation(string traceId, string spanId, string operationName,
+        string operationType, string tableName, string details, DateTime startedAt, DateTime endedAt,
+        string status, string? errorMessage, PgSessionInfo? session)
+    {
+        _context.Database.ExecuteSqlRaw(@"
+            INSERT INTO db_operation_logs
+                (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
+                 ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""ErrorMessage"", ""Exported"",
+                 ""DbPid"", ""DbTransactionId"", ""DbSessionUser"", ""DbServerIp"",
+                 ""DbServerPort"", ""DbName"", ""DbApplicationName"")
+            VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, false,
+                    {10}, {11}, {12}, {13}, {14}, {15}, {16})",
+            traceId, spanId, operationName, operationType, tableName,
+            details, startedAt, endedAt, status, errorMessage ?? (object)DBNull.Value,
+            session?.Pid ?? (object)DBNull.Value,
+            session?.TransactionId ?? (object)DBNull.Value,
+            session?.SessionUser ?? (object)DBNull.Value,
+            session?.ServerIp ?? (object)DBNull.Value,
+            session?.ServerPort ?? (object)DBNull.Value,
+            session?.DbName ?? (object)DBNull.Value,
+            session?.ApplicationName ?? (object)DBNull.Value);
+    }
+
+    /// <summary>
     /// Simula uma stored procedure que recebe o correlation_id (trace context),
-    /// executa a operação de negócio e loga na tabela db_operation_logs.
+    /// executa a operação de negócio e loga na tabela db_operation_logs
+    /// com informações da sessão PostgreSQL (PID, transaction ID, server IP, etc.).
     /// </summary>
     private string ExecuteCreateQuoteProcedure(
         int customerId, string vehiclePlate, string vehicleModel,
@@ -223,6 +284,9 @@ public class QuoteService : IQuoteService
         using var transaction = _context.Database.BeginTransaction();
         try
         {
+            // Captura informações da sessão PostgreSQL dentro da transaction
+            var session = GetPgSessionInfo();
+
             // Passo 1: operação de negócio - INSERT do quote
             _context.Database.ExecuteSqlRaw(@"
                 INSERT INTO ""Quotes"" (""QuoteNumber"", ""CustomerId"", ""VehiclePlate"", ""VehicleModel"",
@@ -234,7 +298,7 @@ public class QuoteService : IQuoteService
 
             var endedAt = DateTime.UtcNow;
 
-            // Passo 2: a "procedure" loga a operação com o correlation_id
+            // Passo 2: loga a operação com correlation_id + sessão PostgreSQL
             var details = JsonSerializer.Serialize(new
             {
                 quote_number = quoteNumber,
@@ -243,13 +307,8 @@ public class QuoteService : IQuoteService
                 premium
             });
 
-            _context.Database.ExecuteSqlRaw(@"
-                INSERT INTO db_operation_logs
-                    (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
-                     ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""Exported"")
-                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, false)",
-                traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
-                details, startedAt, endedAt, "OK");
+            LogDbOperation(traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
+                details, startedAt, endedAt, "OK", null, session);
 
             transaction.Commit();
             return quoteNumber;
@@ -259,17 +318,10 @@ public class QuoteService : IQuoteService
             var endedAt = DateTime.UtcNow;
             transaction.Rollback();
 
-            // Loga erro na tabela de telemetria (fora da transaction)
             try
             {
-                _context.Database.ExecuteSqlRaw(@"
-                    INSERT INTO db_operation_logs
-                        (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
-                         ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""ErrorMessage"", ""Exported"")
-                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, false)",
-                    traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
-                    "{}", startedAt, endedAt,
-                    "ERROR", ex.Message);
+                LogDbOperation(traceId, spanId, "sp_create_quote", "INSERT", "Quotes",
+                    "{}", startedAt, endedAt, "ERROR", ex.Message, null);
             }
             catch { /* telemetria não deve quebrar o fluxo de negócio */ }
 
@@ -278,7 +330,7 @@ public class QuoteService : IQuoteService
     }
 
     /// <summary>
-    /// Simula stored procedure de aprovação com correlation_id.
+    /// Simula stored procedure de aprovação com correlation_id + sessão PostgreSQL.
     /// </summary>
     private bool ExecuteApproveQuoteProcedure(string quoteNumber)
     {
@@ -295,6 +347,8 @@ public class QuoteService : IQuoteService
         using var transaction = _context.Database.BeginTransaction();
         try
         {
+            var session = GetPgSessionInfo();
+
             _context.Database.ExecuteSqlRaw(@"
                 UPDATE ""Quotes"" SET ""Status"" = {0} WHERE ""QuoteNumber"" = {1}",
                 (int)QuoteStatus.Approved, quoteNumber);
@@ -308,13 +362,8 @@ public class QuoteService : IQuoteService
                 new_status = QuoteStatus.Approved.ToString()
             });
 
-            _context.Database.ExecuteSqlRaw(@"
-                INSERT INTO db_operation_logs
-                    (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
-                     ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""Exported"")
-                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, false)",
-                traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
-                details, startedAt, endedAt, "OK");
+            LogDbOperation(traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
+                details, startedAt, endedAt, "OK", null, session);
 
             transaction.Commit();
             return true;
@@ -326,14 +375,8 @@ public class QuoteService : IQuoteService
 
             try
             {
-                _context.Database.ExecuteSqlRaw(@"
-                    INSERT INTO db_operation_logs
-                        (""TraceId"", ""SpanId"", ""OperationName"", ""OperationType"", ""TableName"",
-                         ""Details"", ""StartedAt"", ""EndedAt"", ""Status"", ""ErrorMessage"", ""Exported"")
-                    VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, false)",
-                    traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
-                    "{}", startedAt, endedAt,
-                    "ERROR", ex.Message);
+                LogDbOperation(traceId, spanId, "sp_approve_quote", "UPDATE", "Quotes",
+                    "{}", startedAt, endedAt, "ERROR", ex.Message, null);
             }
             catch { /* telemetria não deve quebrar o fluxo de negócio */ }
 

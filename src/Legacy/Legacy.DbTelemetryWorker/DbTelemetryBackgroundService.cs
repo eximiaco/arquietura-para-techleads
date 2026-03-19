@@ -97,6 +97,22 @@ public class DbTelemetryBackgroundService : BackgroundService
         if (!string.IsNullOrEmpty(log.Details))
             activity.SetTag("db.operation.details", log.Details);
 
+        // Informações da sessão PostgreSQL
+        if (log.DbPid.HasValue)
+            activity.SetTag("db.postgresql.pid", log.DbPid.Value);
+        if (!string.IsNullOrEmpty(log.DbTransactionId))
+            activity.SetTag("db.postgresql.transaction_id", log.DbTransactionId);
+        if (!string.IsNullOrEmpty(log.DbSessionUser))
+            activity.SetTag("db.user", log.DbSessionUser);
+        if (!string.IsNullOrEmpty(log.DbServerIp))
+            activity.SetTag("server.address", log.DbServerIp);
+        if (!string.IsNullOrEmpty(log.DbServerPort))
+            activity.SetTag("server.port", log.DbServerPort);
+        if (!string.IsNullOrEmpty(log.DbName))
+            activity.SetTag("db.name", log.DbName);
+        if (!string.IsNullOrEmpty(log.DbApplicationName))
+            activity.SetTag("db.postgresql.application_name", log.DbApplicationName);
+
         if (log.Status == "ERROR")
         {
             activity.SetStatus(ActivityStatusCode.Error, log.ErrorMessage);

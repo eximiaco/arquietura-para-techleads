@@ -14,4 +14,13 @@ public class DbOperationLog
     public string Status { get; set; } = "OK";
     public string? ErrorMessage { get; set; }
     public bool Exported { get; set; }
+
+    // Informações da sessão PostgreSQL capturadas pela "procedure"
+    public int? DbPid { get; set; }
+    public string? DbTransactionId { get; set; }
+    public string? DbSessionUser { get; set; }
+    public string? DbServerIp { get; set; }
+    public string? DbServerPort { get; set; }
+    public string? DbName { get; set; }
+    public string? DbApplicationName { get; set; }
 }
