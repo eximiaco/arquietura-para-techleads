@@ -454,3 +454,37 @@ curl -X POST http://localhost:15100/QuoteService.svc \
 ```
 
 **No Dashboard:** os traces mostram claramente qual caminho foi usado — Modern.Api ou QuoteService SOAP — permitindo comparar performance e comportamento lado a lado.
+
+### 2. CQRS (Command Query Responsibility Segregation)
+
+Separação de responsabilidade entre leituras e escritas. As **queries** (leitura) são servidas pelo Modern.Api REST, enquanto os **commands** (escrita: criar cotação, aprovar, criar apólice, criar sinistro) continuam no legado SOAP.
+
+**Separação no Gateway:**
+
+```
+QUERIES (leitura) → Modern.Api REST
+  GET /api/quotes/customer/{id}
+  GET /api/quotes/{quoteNumber}
+  GET /api/policies/customer/{id}
+  GET /api/policies/{policyNumber}
+  GET /api/claims/policy/{policyNumber}
+
+COMMANDS (escrita) → Legacy SOAP
+  POST /QuoteService.svc    → Criar cotação, Aprovar cotação
+  POST /PolicyService.svc   → Criar apólice
+  POST /ClaimsService.svc   → Criar sinistro
+```
+
+**Benefícios demonstrados:**
+- Leituras modernas (JSON, async, EF Core LINQ) sem tocar nas escritas
+- Escritas legadas continuam estáveis (contratos SOAP inalterados)
+- Mesmo banco de dados compartilhado (PostgreSQL)
+- Evolução gradual sem risco de quebrar escritas críticas
+
+**Testar queries REST:**
+```bash
+curl http://localhost:15100/api/quotes/customer/999
+curl http://localhost:15100/api/policies/customer/999
+curl http://localhost:15100/api/policies/AUTO-1234
+curl http://localhost:15100/api/claims/policy/AUTO-1234
+```
