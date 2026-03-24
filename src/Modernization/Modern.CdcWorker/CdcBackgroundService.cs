@@ -79,25 +79,27 @@ public class CdcBackgroundService : BackgroundService
             _logger.LogInformation("CDC Event: {Operation} on {Table} at {Timestamp}",
                 evt.Operation, evt.Table, evt.Timestamp);
 
-            // Tenta extrair TraceId do payload para criar link ao trace original
+            // Tenta extrair TraceId+SpanId do payload para criar link ao trace original
             var links = new List<ActivityLink>();
-            var originTraceId = ExtractTraceId(evt);
-            if (!string.IsNullOrEmpty(originTraceId))
+            var (originTraceId, originSpanId) = ExtractTraceContext(evt);
+            if (!string.IsNullOrEmpty(originTraceId) && !string.IsNullOrEmpty(originSpanId))
             {
                 try
                 {
                     var traceId = ActivityTraceId.CreateFromString(originTraceId.AsSpan());
-                    var linkedContext = new ActivityContext(traceId, default, ActivityTraceFlags.Recorded);
+                    var spanId = ActivitySpanId.CreateFromString(originSpanId.AsSpan());
+                    var linkedContext = new ActivityContext(traceId, spanId, ActivityTraceFlags.Recorded);
                     links.Add(new ActivityLink(linkedContext, new ActivityTagsCollection
                     {
                         { "link.description", "Trace that originated this database change" }
                     }));
 
-                    _logger.LogInformation("CDC Event linked to origin TraceId: {TraceId}", originTraceId);
+                    _logger.LogInformation("CDC Event linked to origin TraceId: {TraceId}, SpanId: {SpanId}",
+                        originTraceId, originSpanId);
                 }
                 catch
                 {
-                    // TraceId inválido — ignora o link
+                    // Trace context inválido — ignora o link
                 }
             }
 
@@ -117,7 +119,10 @@ public class CdcBackgroundService : BackgroundService
                 activity.SetTag("cdc.has_origin_link", !string.IsNullOrEmpty(originTraceId));
 
                 if (!string.IsNullOrEmpty(originTraceId))
+                {
                     activity.SetTag("cdc.origin_trace_id", originTraceId);
+                    activity.SetTag("cdc.origin_span_id", originSpanId);
+                }
 
                 activity.SetTag("cdc.payload", payload.Length > 2000
                     ? payload.Substring(0, 2000) + "..."
@@ -131,22 +136,27 @@ public class CdcBackgroundService : BackgroundService
     }
 
     /// <summary>
-    /// Extrai o TraceId do campo data do payload CDC.
-    /// O TraceId é gravado na tabela pela procedure (ex: Quotes.TraceId).
+    /// Extrai TraceId e SpanId do campo data do payload CDC.
+    /// Gravados na tabela pela procedure (ex: Quotes.TraceId, Quotes.SpanId).
     /// </summary>
-    private static string? ExtractTraceId(CdcEvent evt)
+    private static (string? traceId, string? spanId) ExtractTraceContext(CdcEvent evt)
     {
-        if (evt.Data == null) return null;
+        if (evt.Data == null) return (null, null);
 
         try
         {
-            // O trigger envia row_to_json(NEW) — o campo TraceId vem como propriedade
+            string? traceId = null, spanId = null;
+
             if (evt.Data.Value.TryGetProperty("TraceId", out var traceIdProp))
-                return traceIdProp.GetString();
+                traceId = traceIdProp.GetString();
+            if (evt.Data.Value.TryGetProperty("SpanId", out var spanIdProp))
+                spanId = spanIdProp.GetString();
+
+            return (traceId, spanId);
         }
         catch { }
 
-        return null;
+        return (null, null);
     }
 }
 

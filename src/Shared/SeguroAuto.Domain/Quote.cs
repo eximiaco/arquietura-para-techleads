@@ -14,6 +14,7 @@ public class Quote
     public DateTime ValidUntil { get; set; }
     public DateTime CreatedAt { get; set; }
     public string? TraceId { get; set; }
+    public string? SpanId { get; set; }
 }
 
 public enum QuoteStatus
