@@ -6,6 +6,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
+using Npgsql;
 using OpenTelemetry.Trace;
 
 namespace SeguroAuto.ServiceDefaults;
@@ -59,7 +60,8 @@ public static class Extensions
                     .AddHttpClientInstrumentation(options =>
                     {
                         options.RecordException = true;
-                    });
+                    })
+                    .AddNpgsql();
             })
             .WithMetrics(metrics =>
             {
