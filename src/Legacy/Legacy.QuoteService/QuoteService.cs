@@ -315,14 +315,14 @@ public class QuoteService : IQuoteService
             // Captura informações da sessão PostgreSQL dentro da transaction
             session = GetPgSessionInfo();
 
-            // Passo 1: operação de negócio - INSERT do quote
+            // Passo 1: operação de negócio - INSERT do quote (inclui TraceId para CDC backlink)
             _context.Database.ExecuteSqlRaw(@"
                 INSERT INTO ""Quotes"" (""QuoteNumber"", ""CustomerId"", ""VehiclePlate"", ""VehicleModel"",
-                                    ""VehicleYear"", ""Premium"", ""Status"", ""ValidUntil"", ""CreatedAt"")
-                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8})",
+                                    ""VehicleYear"", ""Premium"", ""Status"", ""ValidUntil"", ""CreatedAt"", ""TraceId"")
+                VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9})",
                 quoteNumber, customerId, vehiclePlate, vehicleModel,
                 vehicleYear, premium, (int)QuoteStatus.Pending,
-                now.AddDays(30), now);
+                now.AddDays(30), now, traceId);
 
             // Passo 2: simula erro DENTRO da procedure (após o INSERT, dentro da transaction)
             // O erro acontece no banco — a proc loga o erro e faz rollback

@@ -13,6 +13,7 @@ public class Quote
     public QuoteStatus Status { get; set; }
     public DateTime ValidUntil { get; set; }
     public DateTime CreatedAt { get; set; }
+    public string? TraceId { get; set; }
 }
 
 public enum QuoteStatus
